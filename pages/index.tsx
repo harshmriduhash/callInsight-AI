@@ -1,0 +1,3308 @@
+import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Mic, MicOff, Upload, BarChart3, Brain, TrendingUp, Users, Clock, Phone, Play, Pause, Volume2, LogOut, User as UserIcon, Trash2, Download, Target, Award, Zap, FileText, FileSpreadsheet, FileImage, File, Search, GitCompare } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts'
+import { useRouter } from 'next/router'
+import { useAuth } from '../hooks/useAuth'
+import { processAudioComplete, analyzeTranscription, transcribeAudio } from '../services/audioAnalysis'
+import { useNotifications, useRecordingAlerts } from '../components/NotificationSystem'
+import DarkModeToggle from '../components/DarkModeToggle'
+import RealtimeTranscription from '../components/RealtimeTranscription'
+import TrainingMode from '../components/TrainingMode'
+import ComparisonView from '../components/ComparisonView'
+import AdvancedSearch from '../components/AdvancedSearch'
+import { SentimentHeatmap, KeywordWordCloud, InteractiveTimeline } from '../components/AdvancedVisualizations'
+import CollaborationFeatures from '../components/CollaborationFeatures'
+import { analyzeVoiceTone } from '../services/voiceAnalysis'
+import InteractiveTimelineAdvanced from '../components/InteractiveTimeline'
+import EmotionHeatmap from '../components/EmotionHeatmap'
+import SpeechChart from '../components/SpeechChart'
+import { compressAudio } from '../utils/audioCompression'
+
+const sentimentData = [
+  { time: '0:00', sentiment: 0.2, engagement: 0.3 },
+  { time: '2:00', sentiment: 0.4, engagement: 0.5 },
+  { time: '4:00', sentiment: 0.7, engagement: 0.8 },
+  { time: '6:00', sentiment: 0.5, engagement: 0.6 },
+  { time: '8:00', sentiment: 0.8, engagement: 0.9 },
+  { time: '10:00', sentiment: 0.9, engagement: 0.95 }
+]
+
+const keywordsData = [
+  { word: 'price', count: 15, sentiment: 'negative' },
+  { word: 'features', count: 12, sentiment: 'positive' },
+  { word: 'competitor', count: 8, sentiment: 'neutral' },
+  { word: 'budget', count: 10, sentiment: 'negative' },
+  { word: 'solution', count: 18, sentiment: 'positive' }
+]
+
+const performanceData = [
+  { metric: 'Talk Time', value: 65, fullMark: 100 },
+  { metric: 'Questions Asked', value: 85, fullMark: 100 },
+  { metric: 'Objection Handling', value: 70, fullMark: 100 },
+  { metric: 'Closing Attempts', value: 45, fullMark: 100 },
+  { metric: 'Rapport Building', value: 80, fullMark: 100 }
+]
+
+const callsData = [
+  { date: 'Mon', calls: 12, conversions: 3, avgDuration: 25 },
+  { date: 'Tue', calls: 15, conversions: 5, avgDuration: 28 },
+  { date: 'Wed', calls: 10, conversions: 2, avgDuration: 22 },
+  { date: 'Thu', calls: 18, conversions: 7, avgDuration: 32 },
+  { date: 'Fri', calls: 14, conversions: 4, avgDuration: 26 }
+]
+
+export default function CallInsightAI() {
+  const router = useRouter()
+  const { user, loading, logout, updateSubscription, isSubscribed, canAccessFeature } = useAuth()
+  const [activeTab, setActiveTab] = useState('live')
+  const [isRecording, setIsRecording] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [audioLevel, setAudioLevel] = useState(0)
+  const [hasPermission, setHasPermission] = useState(false)
+  const [error, setError] = useState('')
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [selectedPlan, setSelectedPlan] = useState('pro')
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null)
+  const [redirecting, setRedirecting] = useState(false)
+  const [recordings, setRecordings] = useState<Array<{id: string, name: string, date: string, duration: number, blob: string, aiData?: any}>>([])
+  const [selectedRecordings, setSelectedRecordings] = useState<string[]>([])
+  const [aiAnalysis, setAiAnalysis] = useState({
+    sentiment: 'neutral',
+    sentimentScore: 0.5,
+    engagement: 'medium',
+    engagementScore: 0.5,
+    suggestions: ['Aguardando análise...'],
+    keywords: [] as string[]
+  })
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [analysisProgress, setAnalysisProgress] = useState(0)
+  const [realTimeData, setRealTimeData] = useState<Array<{time: string, sentiment: number, engagement: number}>>([])
+  const [sessionMetrics, setSessionMetrics] = useState({
+    avgSentiment: 0.5,
+    avgEngagement: 0.5,
+    peakMoments: 0,
+    totalWords: 0,
+    energyLevel: 0
+  })
+  const [analyticsData, setAnalyticsData] = useState({
+    totalRecordings: 0,
+    totalDuration: 0,
+    avgSentiment: 0,
+    avgEngagement: 0,
+    topKeywords: [] as Array<{word: string, count: number, sentiment: string}>,
+    weeklyStats: [] as Array<{date: string, recordings: number, avgDuration: number, sentiment: number}>
+  })
+  const [performanceData, setPerformanceData] = useState({
+    overallScore: 0,
+    trendData: [] as Array<{date: string, score: number, sentiment: number, engagement: number}>,
+    skillsBreakdown: [] as Array<{skill: string, current: number, target: number, improvement: number}>,
+    achievements: [] as Array<{title: string, description: string, date: string, type: 'milestone' | 'improvement' | 'streak'}>,
+    recommendations: [] as Array<{title: string, description: string, priority: 'high' | 'medium' | 'low', category: string}>
+  })
+  const [advancedAnalysis, setAdvancedAnalysis] = useState<any>(null)
+  const [nextSteps, setNextSteps] = useState<any>(null)
+  const [isLoadingAdvanced, setIsLoadingAdvanced] = useState(false)
+
+  // New states for advanced features
+  const [isTrainingMode, setIsTrainingMode] = useState(false)
+  const [showComparison, setShowComparison] = useState(false)
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
+  const [objectionAnalysis, setObjectionAnalysis] = useState<any>(null)
+  const [personSentiment, setPersonSentiment] = useState<any>(null)
+  const [voiceAnalysis, setVoiceAnalysis] = useState<any>(null)
+  const [selectedRecordingForCollaboration, setSelectedRecordingForCollaboration] = useState<string | null>(null)
+  const [comments, setComments] = useState<Array<{id: string, userId: string, userName: string, content: string, mentions: string[], createdAt: string}>>([])
+  const [liveTranscriptionText, setLiveTranscriptionText] = useState('')
+  
+  const { addNotification, showAlert } = useNotifications()
+  
+  // Real-time alerts during recording
+  useRecordingAlerts(
+    isRecording,
+    audioLevel,
+    aiAnalysis.sentimentScore,
+    aiAnalysis.engagementScore
+  )
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const animationRef = useRef<number | null>(null)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Testar microfone
+  const testMicrophone = async () => {
+    try {
+      setError('Testando microfone...')
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      setError('✓ Microfone funcionando perfeitamente!')
+      setHasPermission(true)
+      
+      // Parar stream após teste
+      setTimeout(() => {
+        stream.getTracks().forEach(track => track.stop())
+        setError('')
+      }, 2000)
+      
+    } catch (err) {
+      setError('❌ Erro no microfone: ' + (err as Error).message)
+      setHasPermission(false)
+    }
+  }
+
+  // Função de gravação com MediaRecorder
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      })
+      streamRef.current = stream
+      setIsRecording(true)
+      setCurrentTime(0)
+      setError('')
+      
+      // Verificar se o stream está ativo
+      const audioTrack = stream.getAudioTracks()[0]
+      if (!audioTrack || audioTrack.readyState !== 'live') {
+        throw new Error('Microfone não está disponível')
+      }
+      
+      // Monitorar se o track é interrompido
+      audioTrack.onended = () => {
+        setError('⚠️ Microfone foi desconectado')
+        stopRecording()
+      }
+      
+      // MediaRecorder para salvar áudio
+      const options = {
+        mimeType: 'audio/webm;codecs=opus',
+        audioBitsPerSecond: 128000
+      }
+      
+      try {
+        mediaRecorderRef.current = new MediaRecorder(stream, options)
+      } catch {
+        // Fallback para formato padrão
+        mediaRecorderRef.current = new MediaRecorder(stream)
+      }
+      
+      const chunks: BlobPart[] = []
+      
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data)
+      }
+      
+      mediaRecorderRef.current.onstop = () => {
+        if (chunks.length > 0) {
+          const blob = new Blob(chunks, { type: 'audio/webm' })
+          saveRecording(blob)
+        }
+      }
+      
+      mediaRecorderRef.current.onerror = (e) => {
+        console.error('MediaRecorder error:', e)
+        setError('❌ Erro na gravação: ' + (e as any).error?.message || 'Erro desconhecido')
+        stopRecording()
+      }
+      
+      // Iniciar gravação com chunks menores para evitar perda
+      mediaRecorderRef.current.start(1000) // 1 segundo por chunk
+      
+      // Timer
+      timerRef.current = setInterval(() => {
+        setCurrentTime(prev => prev + 1)
+        
+        // Verificar se o stream ainda está ativo
+        if (streamRef.current && streamRef.current.getAudioTracks()[0]?.readyState !== 'live') {
+          setError('⚠️ Conexão com microfone perdida')
+          stopRecording()
+        }
+      }, 1000)
+      
+      // Análise de áudio real com Web Audio API
+      try {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+        
+        // Verificar se o contexto foi suspenso
+        if (audioContextRef.current.state === 'suspended') {
+          await audioContextRef.current.resume()
+        }
+        
+        analyserRef.current = audioContextRef.current.createAnalyser()
+        analyserRef.current.fftSize = 2048
+        analyserRef.current.smoothingTimeConstant = 0.8
+        
+        const source = audioContextRef.current.createMediaStreamSource(stream)
+        source.connect(analyserRef.current)
+        
+        // Análise em tempo real com tratamento de erro
+        const analysisInterval = setInterval(() => {
+          try {
+            if (!analyserRef.current || !isRecording) return
+            
+            const bufferLength = analyserRef.current.frequencyBinCount
+            const dataArray = new Uint8Array(bufferLength)
+            analyserRef.current.getByteFrequencyData(dataArray)
+            
+            // Calcular métricas de áudio
+            // Usar uma média ponderada que dá mais peso aos valores mais altos
+            // Isso evita falsos positivos de "áudio baixo"
+            const sortedValues = Array.from(dataArray).sort((a, b) => b - a)
+            const topValues = sortedValues.slice(0, Math.floor(bufferLength * 0.3)) // Top 30% dos valores
+            const weightedAverage = topValues.reduce((sum, value) => sum + value, 0) / topValues.length
+            
+            const average = dataArray.reduce((sum, value) => sum + value, 0) / bufferLength
+            const peak = Math.max(...Array.from(dataArray))
+            
+            // Usar o maior entre weightedAverage e average para evitar falsos positivos
+            const finalAudioLevel = Math.max(weightedAverage, average * 1.2)
+            
+            setAudioLevel(finalAudioLevel)
+            
+            // Métricas básicas de áudio para visualização
+            const energyScore = (average + peak) / 2 / 255
+            
+            // Atualizar métricas básicas da sessão
+            setSessionMetrics(prev => ({
+              ...prev,
+              peakMoments: energyScore > 0.8 ? prev.peakMoments + 1 : prev.peakMoments,
+              energyLevel: energyScore
+            }))
+          } catch (analysisError) {
+            console.warn('Erro na análise de áudio:', analysisError)
+          }
+        }, 100)
+        
+        animationRef.current = analysisInterval as any
+        
+        // Análise IA em tempo real a cada 15 segundos usando transcrição acumulada
+        let lastIACheck = 0
+        const iaAnalysisInterval = setInterval(() => {
+          if (isRecording) {
+            const transcriptionLength = liveTranscriptionText?.trim().length || 0
+            const timeSinceLastCheck = currentTime - lastIACheck
+            
+            console.log(`📊 Status: transcrição=${transcriptionLength} chars, tempo=${timeSinceLastCheck}s, necessário=15s`)
+            
+            // Reduzir threshold para 50 caracteres (mais fácil de alcançar)
+            if (transcriptionLength > 50 && timeSinceLastCheck >= 15) {
+              lastIACheck = currentTime
+              console.log('✅ Iniciando análise IA em tempo real, transcrição length:', transcriptionLength)
+              performRealtimeIAAnalysis(liveTranscriptionText)
+            } else if (transcriptionLength <= 50) {
+              console.log(`⏳ Aguardando mais transcrição. Atual: ${transcriptionLength} chars (mínimo: 50)`)
+            } else {
+              console.log(`⏳ Aguardando intervalo. Tempo desde última análise: ${timeSinceLastCheck}s (mínimo: 15s)`)
+            }
+          }
+        }, 10000) // Verificar a cada 10 segundos (mais frequente)
+        
+        // Limpar intervalos ao parar gravação
+        return () => {
+          clearInterval(analysisInterval)
+          clearInterval(iaAnalysisInterval)
+        }
+        
+      } catch (audioError) {
+        console.warn('Erro no Web Audio API:', audioError)
+        // Continuar gravação mesmo sem análise visual
+      }
+      
+    } catch (err) {
+      const errorMessage = (err as Error).message
+      if (errorMessage.includes('Permission denied')) {
+        setError('❌ Permissão negada: Permita acesso ao microfone')
+      } else if (errorMessage.includes('NotFound')) {
+        setError('❌ Microfone não encontrado')
+      } else {
+        setError('❌ ERRO: ' + errorMessage)
+      }
+      setIsRecording(false)
+    }
+  }
+
+
+
+  // Parar gravação
+  const stopRecording = () => {
+    try {
+      // Parar MediaRecorder
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop()
+      }
+      
+      // Parar todas as tracks do stream
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
+          track.stop()
+          track.onended = null // Remove event listener
+        })
+        streamRef.current = null
+      }
+      
+      // Limpar timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      
+      // Limpar análise de áudio
+      if (animationRef.current) {
+        clearInterval(animationRef.current as any)
+        animationRef.current = null
+      }
+      
+      // Fechar AudioContext
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close()
+        audioContextRef.current = null
+      }
+      
+      // Limpar analyser
+      analyserRef.current = null
+      mediaRecorderRef.current = null
+      
+      setIsRecording(false)
+      setAudioLevel(0)
+      
+      if (!error.includes('❌') && !error.includes('⚠️')) {
+        setError('✓ Gravação salva com sucesso!')
+      }
+      
+      // Reset session data for next recording
+      setTimeout(() => {
+        if (!isRecording) { // Só limpar se não estiver gravando novamente
+          setError('')
+          setRealTimeData([])
+          setSessionMetrics({
+            avgSentiment: 0.5,
+            avgEngagement: 0.5,
+            peakMoments: 0,
+            totalWords: 0,
+            energyLevel: 0
+          })
+        }
+      }, 2000)
+      
+    } catch (err) {
+      console.error('Erro ao parar gravação:', err)
+      setIsRecording(false)
+      setAudioLevel(0)
+    }
+  }
+
+  // Verificar espaço disponível no localStorage
+  const getStorageSize = () => {
+    let total = 0
+    for (let key in localStorage) {
+      if (localStorage.hasOwnProperty(key)) {
+        total += localStorage[key].length + key.length
+      }
+    }
+    return total
+  }
+  
+  // Limpar gravações antigas para liberar espaço
+  const cleanOldRecordings = (recordings: any[]) => {
+    // Manter apenas as 10 gravações mais recentes
+    const sortedRecordings = recordings.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    return sortedRecordings.slice(0, 10)
+  }
+  
+  // Comprimir dados de IA para economizar espaço
+  const compressAIData = (aiData: any) => {
+    return {
+      sentiment: Math.round(aiData.sentiment * 100) / 100, // 2 casas decimais
+      engagement: Math.round(aiData.engagement * 100) / 100,
+      keywords: aiData.keywords.slice(0, 5), // Máximo 5 keywords
+      realTimeData: aiData.realTimeData.slice(-20) // Últimos 20 pontos
+    }
+  }
+  
+  // Salvar gravação SEMPRE com análise IA REAL
+  const saveRecording = async (blob: Blob) => {
+    try {
+      const reader = new FileReader()
+      reader.onload = async () => {
+        try {
+          const base64 = reader.result as string
+          
+          // Criar gravação inicial (será atualizada após análise IA)
+          const recording = {
+            id: Date.now().toString(),
+            name: `Gravação ${new Date().toLocaleString('pt-BR')}`,
+            date: new Date().toISOString(),
+            duration: currentTime,
+            blob: base64,
+            aiData: undefined, // Será preenchido após análise IA
+            needsAnalysis: true
+          }
+          
+          let updatedRecordings = [...recordings, recording]
+          
+          try {
+            localStorage.setItem('recordings', JSON.stringify(updatedRecordings))
+            setRecordings(updatedRecordings)
+            
+            // SEMPRE analisar com IA ao salvar
+            addNotification({
+              type: 'info',
+              title: 'Análise IA Iniciada',
+              message: 'Processando áudio com Whisper e IA...',
+              duration: 3000
+            })
+            
+            // Comprimir áudio antes de processar
+            let processedBlob = blob
+            try {
+              processedBlob = await compressAudio(blob, { quality: 0.7, format: 'webm' })
+              console.log('Áudio comprimido:', {
+                original: blob.size,
+                compressed: processedBlob.size,
+                ratio: ((blob.size - processedBlob.size) / blob.size * 100).toFixed(1) + '%'
+              })
+            } catch (compressionError) {
+              console.warn('Erro na compressão, usando áudio original:', compressionError)
+            }
+            
+            // Analisar automaticamente com IA REAL
+            try {
+              const { transcription, analysis } = await processAudioComplete(processedBlob, currentTime, false)
+              
+              // Análises adicionais com IA
+              let objectionData = null
+              let personSentimentData = null
+              let advancedAnalysisData = null
+              let nextStepsData = null
+              
+              try {
+                const objectionResponse = await fetch('/api/analyze-objections', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ transcription: transcription.text })
+                })
+                if (objectionResponse.ok) {
+                  objectionData = await objectionResponse.json()
+                }
+              } catch (e) {
+                console.warn('Error analyzing objections:', e)
+              }
+              
+              try {
+                const personResponse = await fetch('/api/analyze-sentiment-by-person', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ transcription: transcription.text })
+                })
+                if (personResponse.ok) {
+                  personSentimentData = await personResponse.json()
+                }
+              } catch (e) {
+                console.warn('Error analyzing person sentiment:', e)
+              }
+              
+              // Análise avançada completa
+              try {
+                setIsLoadingAdvanced(true)
+                const advancedResponse = await fetch('/api/analyze-advanced', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    transcription: transcription.text,
+                    duration: currentTime,
+                    segments: transcription.segments || []
+                  })
+                })
+                if (advancedResponse.ok) {
+                  advancedAnalysisData = await advancedResponse.json()
+                  setAdvancedAnalysis(advancedAnalysisData)
+                }
+              } catch (e) {
+                console.warn('Error in advanced analysis:', e)
+              } finally {
+                setIsLoadingAdvanced(false)
+              }
+              
+              // Gerar próximos passos e proposta
+              try {
+                const nextStepsResponse = await fetch('/api/generate-next-steps', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    transcription: transcription.text,
+                    analysis: analysis,
+                    customerInfo: {
+                      name: 'Cliente',
+                      company: 'Empresa',
+                      painPoints: analysis.improvementAreas || []
+                    }
+                  })
+                })
+                if (nextStepsResponse.ok) {
+                  nextStepsData = await nextStepsResponse.json()
+                  setNextSteps(nextStepsData)
+                }
+              } catch (e) {
+                console.warn('Error generating next steps:', e)
+              }
+              
+              // Análise de tom de voz
+              const audioMetrics = {
+                average: audioLevel,
+                peak: audioLevel * 1.5,
+                variance: audioLevel * 0.3,
+                frequency: new Uint8Array(256).fill(audioLevel)
+              }
+              const voiceAnalysisData = analyzeVoiceTone(audioMetrics, transcription.text, currentTime)
+              
+              const recordingIndex = updatedRecordings.findIndex(r => r.id === recording.id)
+              if (recordingIndex !== -1) {
+                updatedRecordings[recordingIndex] = {
+                  ...updatedRecordings[recordingIndex],
+                  aiData: {
+                    sentiment: analysis.sentiment,
+                    engagement: analysis.engagement,
+                    keywords: analysis.keywords || [],
+                    realTimeData: analysis.realTimeData || realTimeData,
+                    summary: analysis.summary,
+                    positivePoints: analysis.positivePoints,
+                    improvementAreas: analysis.improvementAreas,
+                    recommendations: analysis.recommendations,
+                    transcription: transcription.text,
+                    analyzedAt: analysis.analyzedAt,
+                    // Dados adicionais da IA
+                    objections: objectionData?.objections || [],
+                    competitorMentions: objectionData?.competitorMentions || [],
+                    salespersonSentiment: personSentimentData?.salesperson?.sentiment,
+                    customerSentiment: personSentimentData?.customer?.sentiment,
+                    tensionMoments: personSentimentData?.tensionMoments || [],
+                    voiceEmotion: voiceAnalysisData?.emotion,
+                    speechRate: voiceAnalysisData?.speechRate,
+                    pauseCount: voiceAnalysisData?.pauseCount,
+                    // Dados de análise avançada
+                    advancedAnalysis: advancedAnalysisData,
+                    nextSteps: nextStepsData
+                  } as any,
+                  needsAnalysis: false
+                } as any
+                setRecordings(updatedRecordings)
+                localStorage.setItem('recordings', JSON.stringify(updatedRecordings))
+                
+                addNotification({
+                  type: 'success',
+                  title: 'Análise IA Concluída',
+                  message: `Análise concluída! Sentimento: ${Math.round(analysis.sentiment * 100)}%, Engajamento: ${Math.round(analysis.engagement * 100)}%`,
+                  duration: 5000
+                })
+              }
+            } catch (error: any) {
+              console.error('Erro na análise IA:', error)
+              addNotification({
+                type: 'error',
+                title: 'Erro na Análise',
+                message: error.message || 'Falha ao analisar com IA',
+                duration: 5000
+              })
+            }
+          } catch (quotaError) {
+            // Limpar gravações antigas automaticamente
+            updatedRecordings = cleanOldRecordings(updatedRecordings)
+            try {
+              localStorage.setItem('recordings', JSON.stringify(updatedRecordings))
+              setRecordings(updatedRecordings)
+              setNotification({ message: 'Gravação salva! Gravações antigas removidas.', type: 'success' })
+              setTimeout(() => setNotification(null), 4000)
+            } catch (finalError) {
+              // Salvar apenas metadados sem áudio (fallback)
+              const compressedData = compressAIData({
+                sentiment: aiAnalysis.sentimentScore || 0.5,
+                engagement: aiAnalysis.engagementScore || 0.5,
+                keywords: aiAnalysis.keywords || [],
+                realTimeData: realTimeData || []
+              })
+              const lightRecording: any = { ...recording, blob: '', aiData: { ...compressedData, realTimeData: [] } }
+              const lightRecordings: any[] = [...recordings.slice(-3), lightRecording]
+              localStorage.setItem('recordings', JSON.stringify(lightRecordings))
+              setRecordings(lightRecordings)
+              setNotification({ message: 'Gravação salva (sem áudio). Espaço limitado.', type: 'success' })
+              setTimeout(() => setNotification(null), 4000)
+            }
+          }
+        } catch (err) {
+          setNotification({ message: 'Erro ao salvar gravação', type: 'error' })
+          setTimeout(() => setNotification(null), 3000)
+        }
+      }
+      reader.readAsDataURL(blob)
+    } catch (err) {
+      console.error('Erro ao salvar gravação:', err)
+    }
+  }
+
+  // Download gravação
+  const downloadRecording = async (recording: any) => {
+    try {
+      const response = await fetch(recording.blob)
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${recording.name}.webm`
+      a.click()
+      URL.revokeObjectURL(url)
+      
+      setNotification({
+        message: 'Download iniciado!',
+        type: 'success'
+      })
+      setTimeout(() => setNotification(null), 2000)
+    } catch (err) {
+      setNotification({
+        message: 'Erro no download',
+        type: 'error'
+      })
+      setTimeout(() => setNotification(null), 3000)
+    }
+  }
+
+  // Compartilhar gravação
+  const shareRecording = async (recording: any) => {
+    try {
+      if (typeof window === 'undefined') return
+      
+      const response = await fetch(recording.blob)
+      const blob = await response.blob()
+      
+      // Criar File apenas no browser
+      let file: File | null = null
+      if (typeof window !== 'undefined' && typeof File !== 'undefined') {
+        try {
+          file = new (window as any).File([blob], `${recording.name}.webm`, { type: 'audio/webm' })
+        } catch (e) {
+          console.warn('File constructor not available:', e)
+        }
+      }
+      
+      if (file && navigator.share && (navigator as any).canShare && (navigator as any).canShare({ files: [file] })) {
+        await navigator.share({
+          title: recording.name,
+          text: 'Compartilhando gravação do SalesVoice AI',
+          files: [file]
+        })
+      } else {
+        downloadRecording(recording)
+      }
+    } catch (err) {
+      setNotification({
+        message: 'Erro ao compartilhar',
+        type: 'error'
+      })
+      setTimeout(() => setNotification(null), 3000)
+    }
+  }
+
+  // Deletar gravação
+  const deleteRecording = (id: string) => {
+    const updatedRecordings = recordings.filter(r => r.id !== id)
+    setRecordings(updatedRecordings)
+    try {
+      localStorage.setItem('recordings', JSON.stringify(updatedRecordings))
+    } catch (err) {
+      console.error('Erro ao atualizar localStorage:', err)
+    }
+    setSelectedRecordings(prev => prev.filter(recId => recId !== id))
+  }
+  
+  // Limpar todas as gravações
+  const clearAllRecordings = () => {
+    setRecordings([])
+    setSelectedRecordings([])
+    localStorage.removeItem('recordings')
+    setNotification({
+      message: 'Todas as gravações foram removidas',
+      type: 'success'
+    })
+    setTimeout(() => setNotification(null), 3000)
+  }
+  
+  // Calcular uso do localStorage
+  const getStorageUsage = () => {
+    const used = getStorageSize()
+    const maxSize = 5 * 1024 * 1024 // 5MB aproximado
+    return {
+      used: Math.round(used / 1024), // KB
+      percentage: Math.round((used / maxSize) * 100)
+    }
+  }
+
+  // Toggle seleção de gravação
+  const toggleRecordingSelection = (id: string) => {
+    setSelectedRecordings(prev => 
+      prev.includes(id) ? prev.filter(recId => recId !== id) : [...prev, id]
+    )
+  }
+
+  // Analisar áudios das gravações selecionadas usando API REAL da IA
+  const analyzeSelectedRecordings = async () => {
+    if (selectedRecordings.length === 0) return
+    
+    setIsAnalyzing(true)
+    setAnalysisProgress(0)
+    
+    const targetRecordings = recordings.filter(rec => selectedRecordings.includes(rec.id))
+    const updatedRecordings = [...recordings]
+    
+    for (let i = 0; i < targetRecordings.length; i++) {
+      const recording = targetRecordings[i]
+      setAnalysisProgress(Math.round(((i + 1) / targetRecordings.length) * 100))
+      
+      try {
+        setNotification({
+          message: `Analisando gravação ${i + 1}/${targetRecordings.length} com IA...`,
+          type: 'success'
+        })
+        
+        // Converter base64 de volta para Blob
+        if (!recording.blob) {
+          console.warn('Gravação sem áudio, pulando...')
+          continue
+        }
+        
+        const response = await fetch(recording.blob)
+        const blob = await response.blob()
+        
+        // Processar áudio completo: transcrever com Whisper e analisar com IA
+        const { transcription, analysis } = await processAudioComplete(blob, recording.duration)
+        
+        // Análise adicional: objeções e sentimento por pessoa
+        let objectionData = null
+        let personSentimentData = null
+        let voiceAnalysisData = null
+        
+        try {
+          // Analisar objeções
+          const objectionResponse = await fetch('/api/analyze-objections', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transcription: transcription.text })
+          })
+          if (objectionResponse.ok) {
+            objectionData = await objectionResponse.json()
+          }
+        } catch (e) {
+          console.warn('Error analyzing objections:', e)
+        }
+        
+        try {
+          // Analisar sentimento por pessoa
+          const personResponse = await fetch('/api/analyze-sentiment-by-person', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transcription: transcription.text })
+          })
+          if (personResponse.ok) {
+            personSentimentData = await personResponse.json()
+          }
+        } catch (e) {
+          console.warn('Error analyzing person sentiment:', e)
+        }
+        
+        try {
+          // Análise de tom de voz
+          const audioMetrics = {
+            average: audioLevel,
+            peak: audioLevel * 1.5,
+            variance: audioLevel * 0.3,
+            frequency: new Uint8Array(256).fill(audioLevel)
+          }
+          voiceAnalysisData = analyzeVoiceTone(audioMetrics, transcription.text, recording.duration)
+        } catch (e) {
+          console.warn('Error analyzing voice tone:', e)
+        }
+        
+        // Atualizar gravação com dados reais da IA
+        const recordingIndex = updatedRecordings.findIndex(r => r.id === recording.id)
+        if (recordingIndex !== -1) {
+          updatedRecordings[recordingIndex] = {
+            ...updatedRecordings[recordingIndex],
+            aiData: {
+              sentiment: analysis.sentiment,
+              engagement: analysis.engagement,
+              keywords: analysis.keywords || [],
+              realTimeData: analysis.realTimeData || [],
+              summary: analysis.summary,
+              positivePoints: analysis.positivePoints,
+              improvementAreas: analysis.improvementAreas,
+              recommendations: analysis.recommendations,
+              transcription: transcription.text,
+              analyzedAt: analysis.analyzedAt,
+              // Dados adicionais
+              objections: objectionData?.objections || [],
+              competitorMentions: objectionData?.competitorMentions || [],
+              salespersonSentiment: personSentimentData?.salesperson?.sentiment,
+              customerSentiment: personSentimentData?.customer?.sentiment,
+              tensionMoments: personSentimentData?.tensionMoments || [],
+              voiceEmotion: voiceAnalysisData?.emotion,
+              speechRate: voiceAnalysisData?.speechRate,
+              pauseCount: voiceAnalysisData?.pauseCount
+            }
+          }
+        }
+        
+        // Atualizar estados globais
+        if (objectionData) setObjectionAnalysis(objectionData)
+        if (personSentimentData) setPersonSentiment(personSentimentData)
+        if (voiceAnalysisData) setVoiceAnalysis(voiceAnalysisData)
+      } catch (error: any) {
+        console.error('Erro ao analisar gravação:', error)
+        setNotification({
+          message: `Erro ao analisar gravação ${i + 1}: ${error.message || 'Erro desconhecido'}`,
+          type: 'error'
+        })
+        setTimeout(() => setNotification(null), 5000)
+      }
+    }
+    
+    // Salvar gravações atualizadas
+    setRecordings(updatedRecordings)
+    try {
+    localStorage.setItem('recordings', JSON.stringify(updatedRecordings))
+    } catch (err) {
+      console.error('Erro ao salvar no localStorage:', err)
+    }
+    
+    setIsAnalyzing(false)
+    setAnalysisProgress(0)
+    setActiveTab('analytics')
+    
+    setNotification({
+      message: `Análise de ${targetRecordings.length} gravações concluída com IA!`,
+      type: 'success'
+    })
+    setTimeout(() => setNotification(null), 3000)
+  }
+  
+  // Ver analytics das gravações selecionadas
+  const viewSelectedAnalytics = () => {
+    if (selectedRecordings.length > 0) {
+      analyzeSelectedRecordings()
+    }
+  }
+  
+  // Gerar relatório em JSON
+  const downloadJSONReport = (type: 'analytics' | 'performance') => {
+    const data = type === 'analytics' ? analyticsData : performanceData
+    const reportData = {
+      reportType: type,
+      generatedAt: new Date().toISOString(),
+      user: user?.name,
+      data
+    }
+    
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${type}-report-${new Date().toISOString().split('T')[0]}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    
+    setNotification({
+      message: `Relatório JSON de ${type} baixado com sucesso!`,
+      type: 'success'
+    })
+    setTimeout(() => setNotification(null), 3000)
+  }
+  
+  // Gerar relatório em CSV
+  const downloadCSVReport = (type: 'analytics' | 'performance') => {
+    let csvContent = ''
+    
+    if (type === 'analytics') {
+      csvContent = 'Date,Recordings,Avg Duration (min),Sentiment\n'
+      analyticsData.weeklyStats.forEach(stat => {
+        csvContent += `${stat.date},${stat.recordings},${stat.avgDuration.toFixed(1)},${(stat.sentiment * 100).toFixed(1)}%\n`
+      })
+    } else {
+      csvContent = 'Skill,Current,Target,Improvement\n'
+      performanceData.skillsBreakdown.forEach(skill => {
+        csvContent += `${skill.skill},${skill.current}%,${skill.target}%,${skill.improvement > 0 ? '+' : ''}${skill.improvement}\n`
+      })
+    }
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${type}-report-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    
+    setNotification({
+      message: `Relatório CSV de ${type} baixado com sucesso!`,
+      type: 'success'
+    })
+    setTimeout(() => setNotification(null), 3000)
+  }
+  
+  // Gerar relatório em TXT
+  const downloadTXTReport = (type: 'analytics' | 'performance') => {
+    const date = new Date().toLocaleDateString()
+    let content = `SalesVoice AI - ${type.toUpperCase()} REPORT\n`
+    content += `Generated: ${date}\n`
+    content += `User: ${user?.name}\n`
+    content += '='.repeat(50) + '\n\n'
+    
+    if (type === 'analytics') {
+      content += `ANALYTICS SUMMARY\n`
+      content += `-`.repeat(20) + '\n'
+      content += `Total Recordings: ${analyticsData.totalRecordings}\n`
+      content += `Total Duration: ${Math.round(analyticsData.totalDuration / 60)} minutes\n`
+      content += `Average Sentiment: ${Math.round(analyticsData.avgSentiment * 100)}%\n`
+      content += `Average Engagement: ${Math.round(analyticsData.avgEngagement * 100)}%\n\n`
+      
+      content += `TOP KEYWORDS\n`
+      content += `-`.repeat(15) + '\n'
+      analyticsData.topKeywords.forEach((keyword, i) => {
+        content += `${i + 1}. ${keyword.word} (${keyword.count}x) - ${keyword.sentiment}\n`
+      })
+    } else {
+      content += `PERFORMANCE SUMMARY\n`
+      content += `-`.repeat(20) + '\n'
+      content += `Overall Score: ${performanceData.overallScore}/100\n\n`
+      
+      content += `SKILLS BREAKDOWN\n`
+      content += `-`.repeat(17) + '\n'
+      performanceData.skillsBreakdown.forEach(skill => {
+        content += `${skill.skill}: ${skill.current}% (Target: ${skill.target}%)\n`
+      })
+      
+      content += `\nRECOMMENDATIONS\n`
+      content += `-`.repeat(15) + '\n'
+      performanceData.recommendations.forEach((rec, i) => {
+        content += `${i + 1}. [${rec.priority.toUpperCase()}] ${rec.title}\n   ${rec.description}\n\n`
+      })
+    }
+    
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${type}-report-${new Date().toISOString().split('T')[0]}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
+    
+    setNotification({
+      message: `Relatório TXT de ${type} baixado com sucesso!`,
+      type: 'success'
+    })
+    setTimeout(() => setNotification(null), 3000)
+  }
+  
+  // Gerar relatório em HTML
+  const downloadHTMLReport = (type: 'analytics' | 'performance') => {
+    const date = new Date().toLocaleDateString()
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <title>SalesVoice AI - ${type.toUpperCase()} Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; color: #333; background: #f5f5f5; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .header { text-align: center; border-bottom: 3px solid #06b6d4; padding-bottom: 20px; margin-bottom: 30px; }
+    .title { color: #06b6d4; font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+    .subtitle { color: #666; font-size: 16px; }
+    .section { margin: 30px 0; }
+    .section-title { color: #06b6d4; font-size: 20px; font-weight: bold; border-bottom: 2px solid #ddd; padding-bottom: 8px; margin-bottom: 15px; }
+    .metric { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+    .metric-label { font-weight: bold; color: #333; }
+    .metric-value { color: #06b6d4; font-weight: bold; font-size: 16px; }
+    .recommendation { background: #f8f9fa; padding: 20px; margin: 15px 0; border-left: 5px solid #06b6d4; border-radius: 5px; }
+    .priority-high { border-left-color: #ef4444; background: #fef2f2; }
+    .priority-medium { border-left-color: #f59e0b; background: #fffbeb; }
+    .priority-low { border-left-color: #10b981; background: #f0fdf4; }
+    .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="title">SalesVoice AI</div>
+      <div class="subtitle">${type.toUpperCase()} REPORT</div>
+      <div class="subtitle">Generated: ${date} | User: ${user?.name}</div>
+    </div>
+    
+    ${type === 'analytics' ? `
+      <div class="section">
+        <div class="section-title">Analytics Summary</div>
+        <div class="metric">
+          <span class="metric-label">Total Recordings:</span>
+          <span class="metric-value">${analyticsData.totalRecordings}</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Total Duration:</span>
+          <span class="metric-value">${Math.round(analyticsData.totalDuration / 60)} minutes</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Average Sentiment:</span>
+          <span class="metric-value">${Math.round(analyticsData.avgSentiment * 100)}%</span>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Average Engagement:</span>
+          <span class="metric-value">${Math.round(analyticsData.avgEngagement * 100)}%</span>
+        </div>
+      </div>
+      
+      <div class="section">
+        <div class="section-title">Top Keywords</div>
+        ${analyticsData.topKeywords.map((keyword, i) => `
+          <div class="metric">
+            <span class="metric-label">${i + 1}. ${keyword.word}</span>
+            <span class="metric-value">${keyword.count}x (${keyword.sentiment})</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : `
+      <div class="section">
+        <div class="section-title">Performance Summary</div>
+        <div class="metric">
+          <span class="metric-label">Overall Score:</span>
+          <span class="metric-value">${performanceData.overallScore}/100</span>
+        </div>
+      </div>
+      
+      <div class="section">
+        <div class="section-title">Skills Breakdown</div>
+        ${performanceData.skillsBreakdown.map(skill => `
+          <div class="metric">
+            <span class="metric-label">${skill.skill}:</span>
+            <span class="metric-value">${skill.current}% (Target: ${skill.target}%)</span>
+          </div>
+        `).join('')}
+      </div>
+      
+      <div class="section">
+        <div class="section-title">AI Recommendations</div>
+        ${performanceData.recommendations.map((rec, i) => `
+          <div class="recommendation priority-${rec.priority}">
+            <strong>[${rec.priority.toUpperCase()}] ${rec.title}</strong><br><br>
+            ${rec.description}<br><br>
+            <small><strong>Category:</strong> ${rec.category}</small>
+          </div>
+        `).join('')}
+      </div>
+    `}
+    
+    <div class="footer">
+      <p>Gerado por SalesVoice AI | ${new Date().toLocaleString()}</p>
+    </div>
+  </div>
+</body>
+</html>`
+    
+    const blob = new Blob([htmlContent], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${type}-report-${new Date().toISOString().split('T')[0]}.html`
+    a.click()
+    URL.revokeObjectURL(url)
+    
+    setNotification({
+      message: `Relatório HTML de ${type} baixado com sucesso!`,
+      type: 'success'
+    })
+    setTimeout(() => setNotification(null), 3000)
+  }
+
+  // Gerar relatório em PDF
+  const downloadPDFReport = (type: 'analytics' | 'performance') => {
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+    
+    const date = new Date().toLocaleDateString()
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <title>SalesVoice AI - ${type.toUpperCase()} Report</title>
+  <style>
+    @media print { body { margin: 0; } }
+    body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+    .header { text-align: center; border-bottom: 2px solid #06b6d4; padding-bottom: 15px; margin-bottom: 25px; }
+    .title { color: #06b6d4; font-size: 24px; font-weight: bold; }
+    .subtitle { color: #666; font-size: 14px; margin-top: 5px; }
+    .section { margin: 25px 0; page-break-inside: avoid; }
+    .section-title { color: #06b6d4; font-size: 18px; font-weight: bold; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 10px; }
+    .metric { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+    .metric-label { font-weight: bold; }
+    .metric-value { color: #06b6d4; font-weight: bold; }
+    .recommendation { background: #f8f9fa; padding: 15px; margin: 10px 0; border-left: 4px solid #06b6d4; page-break-inside: avoid; }
+    .priority-high { border-left-color: #ef4444; }
+    .priority-medium { border-left-color: #f59e0b; }
+    .priority-low { border-left-color: #10b981; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">CallInsight AI</div>
+    <div class="subtitle">${type.toUpperCase()} REPORT</div>
+    <div class="subtitle">Generated: ${date} | User: ${user?.name}</div>
+  </div>
+  
+  ${type === 'analytics' ? `
+    <div class="section">
+      <div class="section-title">Analytics Summary</div>
+      <div class="metric">
+        <span class="metric-label">Total Recordings:</span>
+        <span class="metric-value">${analyticsData.totalRecordings}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Total Duration:</span>
+        <span class="metric-value">${Math.round(analyticsData.totalDuration / 60)} minutes</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Average Sentiment:</span>
+        <span class="metric-value">${Math.round(analyticsData.avgSentiment * 100)}%</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Average Engagement:</span>
+        <span class="metric-value">${Math.round(analyticsData.avgEngagement * 100)}%</span>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Top Keywords</div>
+      ${analyticsData.topKeywords.map((keyword, i) => `
+        <div class="metric">
+          <span class="metric-label">${i + 1}. ${keyword.word}</span>
+          <span class="metric-value">${keyword.count}x (${keyword.sentiment})</span>
+        </div>
+      `).join('')}
+    </div>
+  ` : `
+    <div class="section">
+      <div class="section-title">Performance Summary</div>
+      <div class="metric">
+        <span class="metric-label">Overall Score:</span>
+        <span class="metric-value">${performanceData.overallScore}/100</span>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Skills Breakdown</div>
+      ${performanceData.skillsBreakdown.map(skill => `
+        <div class="metric">
+          <span class="metric-label">${skill.skill}:</span>
+          <span class="metric-value">${skill.current}% (Target: ${skill.target}%)</span>
+        </div>
+      `).join('')}
+    </div>
+    
+    <div class="section">
+      <div class="section-title">AI Recommendations</div>
+      ${performanceData.recommendations.map((rec, i) => `
+        <div class="recommendation priority-${rec.priority}">
+          <strong>[${rec.priority.toUpperCase()}] ${rec.title}</strong><br><br>
+          ${rec.description}<br><br>
+          <small><strong>Category:</strong> ${rec.category}</small>
+        </div>
+      `).join('')}
+    </div>
+  `}
+</body>
+</html>`
+    
+    printWindow.document.write(htmlContent)
+    printWindow.document.close()
+    
+    setTimeout(() => {
+      printWindow.print()
+      printWindow.close()
+    }, 500)
+    
+    setNotification({
+      message: `Relatório PDF de ${type} aberto para impressão!`,
+      type: 'success'
+    })
+    setTimeout(() => setNotification(null), 3000)
+  }
+
+  // Análise IA em tempo real usando transcrição
+  const performRealtimeIAAnalysis = async (transcription: string) => {
+    // Validar transcrição antes de enviar
+    if (!transcription || typeof transcription !== 'string' || transcription.trim().length < 10) {
+      console.log('⚠️ Transcrição muito curta ou vazia, pulando análise IA:', transcription?.length || 0)
+      return
+    }
+    
+    const transcriptionToSend = transcription.slice(-500).trim() // Últimos 500 caracteres
+    
+    if (!transcriptionToSend || transcriptionToSend.length < 10) {
+      console.log('⚠️ Transcrição após slice muito curta, pulando análise IA')
+      return
+    }
+    
+    console.log('✅ Iniciando análise IA em tempo real com', transcriptionToSend.length, 'caracteres')
+    
+    try {
+      // Usar API de análise em tempo real
+      const response = await fetch('/api/analyze-realtime', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcription: transcriptionToSend,
+          currentTime: currentTime
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
+        throw new Error(errorData.error || `Erro HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const analysis = await response.json()
+      console.log('✅ Análise IA recebida:', analysis)
+    
+      // Atualizar análise com dados reais da IA
+    setAiAnalysis({
+          sentiment: analysis.sentiment > 0.7 ? 'positive' : analysis.sentiment > 0.4 ? 'neutral' : 'negative',
+          sentimentScore: analysis.sentiment || 0.5,
+          engagement: analysis.engagement > 0.7 ? 'high' : analysis.engagement > 0.4 ? 'medium' : 'low',
+          engagementScore: analysis.engagement || 0.5,
+          suggestions: analysis.suggestion ? [analysis.suggestion] : ['📈 Continue desenvolvendo a conversa'],
+          keywords: analysis.keywords || []
+    })
+    
+    // Salvar dados para analytics
+    const timeStr = formatTime(currentTime)
+    setRealTimeData(prev => {
+          const newData = [...prev, { 
+            time: timeStr, 
+            sentiment: analysis.sentiment || 0.5, 
+            engagement: analysis.engagement || 0.5 
+          }]
+      return newData.slice(-50) // Manter apenas últimos 50 pontos
+    })
+    
+        // Atualizar métricas da sessão com dados reais
+    setSessionMetrics(prev => ({
+          avgSentiment: prev.avgSentiment === 0.5 
+            ? (analysis.sentiment || 0.5)
+            : (prev.avgSentiment + (analysis.sentiment || 0.5)) / 2,
+          avgEngagement: prev.avgEngagement === 0.5
+            ? (analysis.engagement || 0.5)
+            : (prev.avgEngagement + (analysis.engagement || 0.5)) / 2,
+          peakMoments: prev.peakMoments,
+          totalWords: transcription.split(/\s+/).length,
+          energyLevel: prev.energyLevel
+        }))
+        
+        // Notificar se houver sugestão importante
+        if (analysis.suggestion && analysis.suggestion.length > 0) {
+          addNotification({
+            type: 'info',
+            title: 'Sugestão ao Vivo',
+            message: analysis.suggestion,
+            duration: 5000
+          })
+    }
+    } catch (error: any) {
+      console.error('❌ Erro na análise IA em tempo real:', error)
+      
+      // Mostrar erro detalhado para debug
+      const errorMessage = error.message || 'Erro desconhecido'
+      const errorDetails = error.response?.data || error.details || ''
+      
+      console.error('Detalhes do erro:', {
+        message: errorMessage,
+        details: errorDetails,
+        response: error.response,
+        status: error.response?.status
+      })
+      
+      // Mostrar notificação de erro
+      addNotification({
+        type: 'error',
+        title: 'Erro na Análise em Tempo Real',
+        message: `Erro ao analisar transcrição: ${errorMessage}. A gravação continua normalmente e será analisada completamente ao salvar.`,
+        duration: 5000
+      })
+    }
+  }
+
+  // Componente de botões de download
+  const ReportDownloadButtons = ({ type }: { type: 'analytics' | 'performance' }) => (
+    <div className="flex items-center space-x-2">
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => downloadPDFReport(type)}
+        className="flex items-center space-x-1 px-3 py-2 bg-red-600/20 text-red-300 rounded-lg text-sm hover:bg-red-600/30"
+        title="Download PDF Report"
+      >
+        <File className="w-4 h-4" />
+        <span>PDF</span>
+      </motion.button>
+      
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => downloadHTMLReport(type)}
+        className="flex items-center space-x-1 px-3 py-2 bg-orange-600/20 text-orange-300 rounded-lg text-sm hover:bg-orange-600/30"
+        title="Download HTML Report"
+      >
+        <File className="w-4 h-4" />
+        <span>HTML</span>
+      </motion.button>
+      
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => downloadJSONReport(type)}
+        className="flex items-center space-x-1 px-3 py-2 bg-blue-600/20 text-blue-300 rounded-lg text-sm hover:bg-blue-600/30"
+        title="Download JSON Report"
+      >
+        <FileText className="w-4 h-4" />
+        <span>JSON</span>
+      </motion.button>
+      
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => downloadCSVReport(type)}
+        className="flex items-center space-x-1 px-3 py-2 bg-green-600/20 text-green-300 rounded-lg text-sm hover:bg-green-600/30"
+        title="Download CSV Report"
+      >
+        <FileSpreadsheet className="w-4 h-4" />
+        <span>CSV</span>
+      </motion.button>
+      
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => downloadTXTReport(type)}
+        className="flex items-center space-x-1 px-3 py-2 bg-purple-600/20 text-purple-300 rounded-lg text-sm hover:bg-purple-600/30"
+        title="Download TXT Report"
+      >
+        <FileImage className="w-4 h-4" />
+        <span>TXT</span>
+      </motion.button>
+    </div>
+  )
+
+  // Alternar gravação
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording()
+    } else {
+      startRecording()
+    }
+  }
+
+  // Calcular analytics baseado em dados reais
+  const calculateAnalytics = () => {
+    const targetRecordings = selectedRecordings.length > 0 
+      ? recordings.filter(rec => selectedRecordings.includes(rec.id))
+      : recordings
+    
+    if (targetRecordings.length === 0) return
+    
+    const totalDuration = targetRecordings.reduce((sum, rec) => sum + rec.duration, 0)
+    
+    // Calcular métricas reais baseadas nos dados de IA
+    const recordingsWithAI = targetRecordings.filter(rec => rec.aiData)
+    const avgSentiment = recordingsWithAI.length > 0 
+      ? recordingsWithAI.reduce((sum, rec) => sum + (rec.aiData?.sentiment || 0.5), 0) / recordingsWithAI.length
+      : sessionMetrics.avgSentiment
+    
+    const avgEngagement = recordingsWithAI.length > 0
+      ? recordingsWithAI.reduce((sum, rec) => sum + (rec.aiData?.engagement || 0.5), 0) / recordingsWithAI.length
+      : sessionMetrics.avgEngagement
+    
+    // Estatísticas semanais com dados reais
+    const weeklyStats = []
+    const today = new Date()
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - i)
+      const dayRecordings = targetRecordings.filter(rec => {
+        const recDate = new Date(rec.date)
+        return recDate.toDateString() === date.toDateString()
+      })
+      
+      const daySentiment = dayRecordings.length > 0 && dayRecordings.some(rec => rec.aiData)
+        ? dayRecordings.filter(rec => rec.aiData).reduce((sum, rec) => sum + (rec.aiData?.sentiment || 0.5), 0) / dayRecordings.filter(rec => rec.aiData).length
+        : 0.5
+      
+      weeklyStats.push({
+        date: date.toLocaleDateString('pt-BR', { weekday: 'short' }),
+        recordings: dayRecordings.length,
+        avgDuration: dayRecordings.length > 0 ? 
+          dayRecordings.reduce((sum, rec) => sum + rec.duration, 0) / dayRecordings.length / 60 : 0,
+        sentiment: daySentiment
+      })
+    }
+    
+    // Keywords baseadas nos dados reais de IA
+    const allKeywords: {[key: string]: number} = {}
+    recordingsWithAI.forEach(rec => {
+      rec.aiData?.keywords?.forEach((keyword: string) => {
+        allKeywords[keyword] = (allKeywords[keyword] || 0) + 1
+      })
+    })
+    
+    const keywords = Object.entries(allKeywords)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5)
+      .map(([word, count]) => ({
+        word,
+        count,
+        sentiment: count > 2 ? 'positive' : count > 1 ? 'neutral' : 'negative'
+      }))
+    
+    setAnalyticsData({
+      totalRecordings: targetRecordings.length,
+      totalDuration,
+      avgSentiment,
+      avgEngagement,
+      topKeywords: keywords,
+      weeklyStats
+    })
+    
+    // Calcular dados de performance
+    calculatePerformanceData(targetRecordings, avgSentiment, avgEngagement)
+  }
+  
+  // Calcular dados de performance
+  const calculatePerformanceData = (recordings: any[], avgSentiment: number, avgEngagement: number) => {
+    const overallScore = Math.round((avgSentiment * 0.4 + avgEngagement * 0.4 + (recordings.length / 10) * 0.2) * 100)
+    
+    // Filtrar gravações com análise IA
+    const recordingsWithAI = recordings.filter(rec => rec.aiData)
+    
+    // Dados de tendência (últimos 7 dias)
+    const trendData = []
+    const today = new Date()
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - i)
+      const dayRecordings = recordings.filter(rec => {
+        const recDate = new Date(rec.date)
+        return recDate.toDateString() === date.toDateString()
+      })
+      
+      const dayAvgSentiment = dayRecordings.length > 0 && dayRecordings.some(rec => rec.aiData)
+        ? dayRecordings.filter(rec => rec.aiData).reduce((sum, rec) => sum + (rec.aiData?.sentiment || 0.5), 0) / dayRecordings.filter(rec => rec.aiData).length
+        : 0.5
+      
+      const dayAvgEngagement = dayRecordings.length > 0 && dayRecordings.some(rec => rec.aiData)
+        ? dayRecordings.filter(rec => rec.aiData).reduce((sum, rec) => sum + (rec.aiData?.engagement || 0.5), 0) / dayRecordings.filter(rec => rec.aiData).length
+        : 0.5
+      
+      trendData.push({
+        date: date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        score: Math.round((dayAvgSentiment * 0.5 + dayAvgEngagement * 0.5) * 100),
+        sentiment: dayAvgSentiment,
+        engagement: dayAvgEngagement
+      })
+    }
+    
+    // Breakdown de habilidades
+    const skillsBreakdown = [
+      { skill: 'Comunicação', current: Math.round(avgSentiment * 100), target: 85, improvement: 0 },
+      { skill: 'Engajamento', current: Math.round(avgEngagement * 100), target: 80, improvement: 0 },
+      { skill: 'Consistência', current: Math.min(recordings.length * 8, 100), target: 90, improvement: 0 },
+      { skill: 'Duração Média', current: Math.min((recordings.reduce((sum, rec) => sum + rec.duration, 0) / recordings.length / 60) * 4, 100), target: 75, improvement: 0 },
+      { skill: 'Frequência', current: Math.min(recordings.length * 12, 100), target: 70, improvement: 0 }
+    ].map(skill => ({ ...skill, improvement: skill.current - skill.target }))
+    
+    // Conquistas
+    const achievements = []
+    if (recordings.length >= 5) achievements.push({ title: '5 Gravações', description: 'Completou 5 gravações', date: new Date().toLocaleDateString(), type: 'milestone' as const })
+    if (avgSentiment > 0.8) achievements.push({ title: 'Alto Sentiment', description: 'Manteve sentiment acima de 80%', date: new Date().toLocaleDateString(), type: 'improvement' as const })
+    if (recordings.length >= 3) achievements.push({ title: 'Sequência Ativa', description: 'Manteve atividade consistente', date: new Date().toLocaleDateString(), type: 'streak' as const })
+    
+    // Recomendações baseadas em dados reais da IA
+    const recommendations: Array<{title: string, description: string, priority: 'high' | 'medium' | 'low', category: string}> = []
+    
+    // Usar recomendações reais da IA quando disponíveis
+    const allRecommendations = recordingsWithAI
+      .flatMap(rec => rec.aiData?.recommendations || [])
+      .filter((rec: any, index: number, self: any[]) => self.indexOf(rec) === index) // Remover duplicatas
+    
+    if (allRecommendations.length > 0) {
+      // Usar recomendações reais da IA
+      allRecommendations.slice(0, 5).forEach((rec: any, index: number) => {
+        recommendations.push({
+          title: `Recomendação IA ${index + 1}`,
+          description: rec,
+          priority: index < 2 ? 'high' as const : index < 4 ? 'medium' as const : 'low' as const,
+          category: 'AI Analysis'
+        })
+      })
+    } else {
+      // Fallback apenas se não houver dados da IA
+    if (avgSentiment < 0.7) recommendations.push({ title: 'Melhorar Tom de Voz', description: 'Pratique um tom mais positivo e entusiasmado', priority: 'high' as const, category: 'Comunicação' })
+    if (avgEngagement < 0.6) recommendations.push({ title: 'Aumentar Engajamento', description: 'Use mais variações na voz e pausas estratégicas', priority: 'high' as const, category: 'Técnica' })
+    if (recordings.length < 5) recommendations.push({ title: 'Praticar Mais', description: 'Faça mais gravações para melhorar consistência', priority: 'medium' as const, category: 'Frequência' })
+    recommendations.push({ title: 'Análise Detalhada', description: 'Revise gravações anteriores para identificar padrões', priority: 'low' as const, category: 'Estratégia' })
+    }
+    
+    // Adicionar recomendações de objeções se disponíveis
+    recordingsWithAI.forEach(rec => {
+      if (rec.aiData?.objections && rec.aiData.objections.length > 0) {
+        rec.aiData.objections.forEach((obj: any) => {
+          if (obj.suggestedResponse && !recommendations.some((r: any) => r.description === obj.suggestedResponse)) {
+            recommendations.push({
+              title: `Handle ${obj.type} Objection`,
+              description: obj.suggestedResponse,
+              priority: obj.severity === 'high' ? 'high' as const : 'medium' as const,
+              category: 'Objection Handling'
+            })
+          }
+        })
+      }
+    })
+    
+    setPerformanceData({
+      overallScore,
+      trendData,
+      skillsBreakdown,
+      achievements,
+      recommendations
+    })
+  }
+
+  // Carregar gravações do localStorage
+  useEffect(() => {
+    const savedRecordings = localStorage.getItem('recordings')
+    if (savedRecordings) {
+      setRecordings(JSON.parse(savedRecordings))
+    }
+  }, [])
+  
+  // Recalcular analytics quando gravações mudarem
+  useEffect(() => {
+    calculateAnalytics()
+  }, [recordings, sessionMetrics, selectedRecordings])
+
+  // Verificar autenticação
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login')
+    }
+  }, [loading, user, router])
+
+  // Cleanup ao desmontar componente
+  useEffect(() => {
+    return () => {
+      stopRecording()
+    }
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900 to-teal-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-300">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) return null
+
+  // Dados dos planos
+  const plans = {
+    pro: {
+      name: 'Pro Plan',
+      price: 79,
+      features: [
+        'Advanced AI coaching',
+        'Team analytics',
+        'Unlimited recordings',
+        'Custom reports',
+        'Priority support'
+      ]
+    },
+    enterprise: {
+      name: 'Enterprise',
+      price: 199,
+      features: [
+        'Everything in Pro',
+        'CRM integration',
+        'White-label solution',
+        'API access',
+        'Dedicated support'
+      ]
+    }
+  }
+
+  // Função para abrir modal de upgrade
+  const openUpgradeModal = (plan = 'pro') => {
+    setSelectedPlan(plan)
+    setShowUpgradeModal(true)
+  }
+
+  // Função para processar upgrade
+  const handleUpgrade = () => {
+    const planName = plans[selectedPlan as keyof typeof plans].name
+    setRedirecting(true)
+    setNotification({
+      message: `Upgrade para ${planName} iniciado! Redirecionando para pagamento...`,
+      type: 'success'
+    })
+    setShowUpgradeModal(false)
+    
+    // Redirecionar para página de checkout após 2 segundos
+    setTimeout(() => {
+      router.push(`/checkout?plan=${selectedPlan}&userId=${user?.id}`)
+    }, 2000)
+  }
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900 to-teal-900 text-white">
+      {/* Header */}
+      <motion.header 
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        className="glass border-b border-white/10 p-6"
+      >
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="p-2 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg"
+            >
+              <Brain className="w-8 h-8" />
+            </motion.div>
+            <div>
+              <h1 className="text-2xl font-bold gradient-text">SalesVoice AI</h1>
+              <p className="text-sm text-gray-300">Análise Inteligente de Chamadas com IA</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 px-4 py-2 glass rounded-lg">
+              <div className={`w-2 h-2 rounded-full animate-pulse ${
+                isSubscribed() ? 'bg-green-400' : 'bg-yellow-400'
+              }`}></div>
+              <span className="text-sm">
+                {isSubscribed() ? user?.subscription?.plan?.toUpperCase() : 'FREE'}
+              </span>
+            </div>
+            
+            <div className="flex items-center space-x-2 px-4 py-2 glass rounded-lg">
+              <UserIcon className="w-4 h-4" />
+              <span className="text-sm">{user?.name}</span>
+            </div>
+            
+            {!isSubscribed() && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => openUpgradeModal('pro')}
+                className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg font-medium"
+              >
+                Upgrade
+              </motion.button>
+            )}
+            
+            <DarkModeToggle />
+            
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={logout}
+              className="p-2 glass rounded-lg hover:bg-red-500/20"
+            >
+              <LogOut className="w-5 h-5" />
+            </motion.button>
+          </div>
+        </div>
+      </motion.header>
+
+      {/* Navigation */}
+      <motion.nav 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="max-w-7xl mx-auto p-6"
+      >
+        <div className="flex space-x-2 glass rounded-xl p-2">
+          {[
+            { id: 'live', label: 'Análise ao Vivo', icon: Mic },
+            { id: 'recordings', label: 'Gravações', icon: Volume2 },
+            { id: 'analytics', label: 'Analíticos', icon: BarChart3 },
+            { id: 'performance', label: 'Desempenho', icon: TrendingUp }
+          ].map((tab) => (
+            <motion.button
+              key={tab.id}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center space-x-2 px-6 py-3 rounded-lg transition-all flex-1 justify-center ${
+                activeTab === tab.id 
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 shadow-lg' 
+                  : 'hover:bg-white/10'
+              }`}
+            >
+              <tab.icon className="w-5 h-5" />
+              <span className="font-medium">{tab.label}</span>
+            </motion.button>
+          ))}
+        </div>
+      </motion.nav>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-6 pb-6">
+        <AnimatePresence mode="wait">
+          {activeTab === 'live' && (
+            <motion.div
+              key="live"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+            >
+              {/* Recording Control */}
+              <div className="lg:col-span-2 space-y-6">
+                <motion.div 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="glass rounded-xl p-8 text-center"
+                >
+                  <motion.div
+                    animate={{ 
+                      scale: isRecording ? [1, 1.1, 1] : 1,
+                    }}
+                    transition={{ duration: 1, repeat: isRecording ? Infinity : 0 }}
+                    className="relative mb-6"
+                  >
+                    <div className="w-32 h-32 mx-auto bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full flex items-center justify-center">
+                      {isRecording ? (
+                        <MicOff className="w-16 h-16" />
+                      ) : (
+                        <Mic className="w-16 h-16" />
+                      )}
+                    </div>
+                    {isRecording && (
+                      <motion.div
+                        animate={{ scale: [1, 2], opacity: [1, 0] }}
+                        transition={{ duration: 2, repeat: Infinity }}
+                        className="absolute inset-0 border-4 border-emerald-400 rounded-full"
+                      />
+                    )}
+                  </motion.div>
+
+                  <h2 className="text-2xl font-bold mb-4">
+                    {isRecording ? 'Gravando Ativamente' : 'Pronto para Gravar'}
+                  </h2>
+                  
+                  {isRecording && (
+                    <div className="mb-6">
+                      <div className="text-3xl font-mono font-bold mb-2">
+                        {formatTime(currentTime)}
+                      </div>
+                      <div className="flex justify-center space-x-1 mb-4">
+                        {Array.from({ length: 20 }).map((_, i) => (
+                          <motion.div
+                            key={i}
+                            animate={{ 
+                              scaleY: audioLevel > i * 12 ? (audioLevel / 255) * 2 + 0.3 : 0.2 
+                            }}
+                            className="w-1 h-8 bg-gradient-to-t from-emerald-500 to-teal-400 rounded-full"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {error && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`mb-4 p-4 rounded-lg border text-sm font-medium ${
+                        error.includes('✓') 
+                          ? 'bg-green-500/20 border-green-500/50 text-green-300'
+                          : error.includes('❌')
+                          ? 'bg-red-500/20 border-red-500/50 text-red-300'
+                          : error.includes('Testando')
+                          ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                          : 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        {error.includes('✓') && <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />}
+                        {error.includes('❌') && <div className="w-2 h-2 bg-red-400 rounded-full" />}
+                        {error.includes('Testando') && <div className="w-2 h-2 bg-blue-400 rounded-full animate-spin" />}
+                        <span>{error}</span>
+                      </div>
+                    </motion.div>
+                  )}
+                  
+
+
+                  <div className="space-y-4">
+                    {/* Botão Principal de Gravação */}
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={toggleRecording}
+                      className={`w-full px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all ${
+                        isRecording 
+                          ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-red-500/25' 
+                          : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-green-500/25'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center space-x-2">
+                        {isRecording ? (
+                          <>
+                            <MicOff className="w-6 h-6" />
+                            <span>Parar Gravação</span>
+                          </>
+                        ) : (
+                          <>
+                            <Mic className="w-6 h-6" />
+                            <span>Iniciar Gravação</span>
+                          </>
+                        )}
+                      </div>
+                    </motion.button>
+                    
+                    {/* Botão de Teste de Microfone */}
+                    {!isRecording && (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={testMicrophone}
+                        className="w-full px-6 py-2 border border-emerald-500/50 text-emerald-300 rounded-lg font-medium hover:bg-emerald-500/10 transition-all"
+                      >
+                        Testar Microfone
+                      </motion.button>
+                    )}
+                  </div>
+                </motion.div>
+
+                {/* Training Mode Toggle */}
+                {!isRecording && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="glass rounded-xl p-6"
+                  >
+                    <TrainingMode
+                      onStart={() => {
+                        setIsTrainingMode(true)
+                        toggleRecording()
+                      }}
+                      onStop={() => {
+                        setIsTrainingMode(false)
+                        if (isRecording) toggleRecording()
+                      }}
+                      isRecording={isRecording && isTrainingMode}
+                    />
+                  </motion.div>
+                )}
+
+                {/* Real-time Transcription */}
+                {isRecording && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <RealtimeTranscription
+                      isRecording={isRecording}
+                      onTranscriptionChange={(text) => {
+                        setLiveTranscriptionText(text)
+                        // Update word count
+                        setSessionMetrics(prev => ({
+                          ...prev,
+                          totalWords: text.split(/\s+/).length
+                        }))
+                      }}
+                      language="pt-BR"
+                    />
+                  </motion.div>
+                )}
+
+                {/* Real-time Insights */}
+                {isRecording && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="glass rounded-xl p-6"
+                  >
+                    <h3 className="text-xl font-bold mb-4">Insights em Tempo Real</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 glass rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-gray-300">Sentimento</span>
+                          <span className={`text-lg font-bold ${
+                            aiAnalysis.sentiment === 'positive' ? 'text-green-400' :
+                            aiAnalysis.sentiment === 'negative' ? 'text-red-400' : 'text-yellow-400'
+                          }`}>
+                            {aiAnalysis.sentiment.charAt(0).toUpperCase() + aiAnalysis.sentiment.slice(1)}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <motion.div
+                            animate={{ width: `${aiAnalysis.sentimentScore * 100}%` }}
+                            className={`h-full rounded-full ${
+                              aiAnalysis.sentiment === 'positive' ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
+                              aiAnalysis.sentiment === 'negative' ? 'bg-gradient-to-r from-red-500 to-pink-500' :
+                              'bg-gradient-to-r from-yellow-500 to-orange-500'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="p-4 glass rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-gray-300">Engajamento</span>
+                          <span className={`text-lg font-bold ${
+                            aiAnalysis.engagement === 'high' ? 'text-blue-400' :
+                            aiAnalysis.engagement === 'low' ? 'text-gray-400' : 'text-emerald-400'
+                          }`}>
+                            {aiAnalysis.engagement.charAt(0).toUpperCase() + aiAnalysis.engagement.slice(1)}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <motion.div
+                            animate={{ width: `${aiAnalysis.engagementScore * 100}%` }}
+                            className="h-full bg-gradient-to-r from-teal-500 to-emerald-500 rounded-full"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 p-4 bg-black/30 rounded-lg">
+                      <h4 className="font-medium mb-2">Sugestões da IA</h4>
+                      <div className="space-y-2 text-sm">
+                        {aiAnalysis.suggestions.map((suggestion, index) => (
+                          <motion.p
+                            key={index}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className={`${
+                              suggestion.includes('Excelente') ? 'text-green-400' :
+                              suggestion.includes('Tente') ? 'text-yellow-400' : 'text-blue-400'
+                            }`}
+                          >
+                            • {suggestion}
+                          </motion.p>
+                        ))}
+                      </div>
+                      
+                      <div className="mt-3 pt-3 border-t border-gray-600">
+                        <p className="text-xs text-gray-400 mb-2">Palavras-chave:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {aiAnalysis.keywords.map((keyword, index) => (
+                            <span key={index} className="px-2 py-1 bg-emerald-500/20 text-emerald-300 rounded text-xs">
+                              {keyword}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Right Sidebar */}
+              <div className="space-y-6">
+                {/* Quick Stats */}
+                <motion.div 
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="glass rounded-xl p-6"
+                >
+                  <h3 className="text-lg font-bold mb-4">Estatísticas de Hoje</h3>
+                  <div className="space-y-4">
+                    {[
+                      { label: 'Chamadas Realizadas', value: '8', icon: '📞', color: 'text-blue-400' },
+                      { label: 'Duração Média', value: '24m', icon: '⏱️', color: 'text-green-400' },
+                      { label: 'Taxa de Conversão', value: '32%', icon: '🎯', color: 'text-purple-400' },
+                      { label: 'Pontuação IA', value: '87', icon: '🧠', color: 'text-emerald-400' }
+                    ].map((stat, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.1 * index }}
+                        className="flex items-center justify-between p-3 glass rounded-lg"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <span className="text-2xl">{stat.icon}</span>
+                          <span className="text-sm text-gray-300">{stat.label}</span>
+                        </div>
+                        <span className={`font-bold text-lg ${stat.color}`}>{stat.value}</span>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+
+                {/* Recent Calls */}
+                <motion.div 
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="glass rounded-xl p-6"
+                >
+                  <h3 className="text-lg font-bold mb-4">Chamadas Recentes</h3>
+                  <div className="space-y-3">
+                    {[
+                      { client: 'Acme Corp', duration: '28m', score: 92, status: 'Won' },
+                      { client: 'Tech Solutions', duration: '15m', score: 67, status: 'Follow-up' },
+                      { client: 'Global Inc', duration: '32m', score: 85, status: 'Proposal' }
+                    ].map((call, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 * index }}
+                        className="p-3 glass rounded-lg hover:bg-white/20 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-sm">{call.client}</span>
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            call.status === 'Won' ? 'bg-green-500/20 text-green-400' :
+                            call.status === 'Follow-up' ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-blue-500/20 text-blue-400'
+                          }`}>
+                            {call.status}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-gray-400">
+                          <span>{call.duration}</span>
+                          <span>Score: {call.score}</span>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+
+                {/* Upgrade Card */}
+                <motion.div 
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="glass rounded-xl p-6 border border-emerald-500/50"
+                >
+                  <div className="text-center">
+                    <motion.div
+                      animate={{ rotate: [0, 10, -10, 0] }}
+                      transition={{ duration: 3, repeat: Infinity }}
+                      className="text-4xl mb-3"
+                    >
+                      🚀
+                    </motion.div>
+                    <h3 className="text-lg font-bold mb-2">Atualizar para Pro</h3>
+                    <p className="text-gray-300 text-sm mb-4">Coaching avançado de IA e análises de equipe</p>
+                    <div className="text-2xl font-bold mb-4">
+                      <span className="gradient-text">$79</span>
+                      <span className="text-sm text-gray-400">/month</span>
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => openUpgradeModal('pro')}
+                      className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg font-medium"
+                    >
+                      Atualizar Agora
+                    </motion.button>
+                  </div>
+                </motion.div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'recordings' && (
+            <motion.div
+              key="recordings"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold">Minhas Gravações</h2>
+                <div className="flex items-center space-x-4">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+                    className="px-4 py-2 glass rounded-lg text-sm font-medium flex items-center gap-2"
+                  >
+                    <Search className="w-4 h-4" />
+                    Busca Avançada
+                  </motion.button>
+                  {selectedRecordings.length >= 2 && (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setShowComparison(!showComparison)}
+                      className="px-4 py-2 glass rounded-lg text-sm font-medium flex items-center gap-2"
+                    >
+                      <GitCompare className="w-4 h-4" />
+                      Comparar ({selectedRecordings.length})
+                    </motion.button>
+                  )}
+                  {selectedRecordings.length > 0 && (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={viewSelectedAnalytics}
+                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg text-sm font-medium"
+                    >
+                      Ver Analíticos ({selectedRecordings.length})
+                    </motion.button>
+                  )}
+                  {recordings.length > 0 && (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={clearAllRecordings}
+                      className="px-3 py-2 bg-red-600/20 text-red-300 rounded-lg text-sm hover:bg-red-600/30"
+                    >
+                      Limpar Tudo
+                    </motion.button>
+                  )}
+                  <div className="text-sm text-gray-400">
+                    {recordings.length} gravação{recordings.length !== 1 ? 'ões' : ''}
+                    <div className="text-xs text-emerald-400">
+                      Armazenamento: {getStorageUsage().used}KB ({getStorageUsage().percentage}%)
+                    </div>
+                    {isAnalyzing && (
+                      <div className="mt-1 text-xs text-emerald-400">
+                        Analisando áudios com IA...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Advanced Search */}
+              {showAdvancedSearch && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="mb-6"
+                >
+                  <AdvancedSearch
+                    recordings={recordings}
+                    onSelect={(ids) => setSelectedRecordings(ids)}
+                  />
+                </motion.div>
+              )}
+
+              {/* Comparison View */}
+              {showComparison && selectedRecordings.length >= 2 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="mb-6"
+                >
+                  <ComparisonView
+                    recordings={recordings.filter(r => selectedRecordings.includes(r.id)).map(r => ({
+                      id: r.id,
+                      name: r.name,
+                      date: r.date,
+                      sentiment: r.aiData?.sentiment || 0.5,
+                      engagement: r.aiData?.engagement || 0.5,
+                      keywords: r.aiData?.keywords || [],
+                      aiData: r.aiData
+                    }))}
+                  />
+                </motion.div>
+              )}
+
+              {recordings.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="glass rounded-xl p-12 text-center"
+                >
+                  <Volume2 className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                  <h3 className="text-xl font-bold mb-2">Nenhuma gravação ainda</h3>
+                  <p className="text-gray-400 mb-6">Inicie uma gravação para ver seus arquivos de áudio aqui</p>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setActiveTab('live')}
+                    className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg font-medium"
+                  >
+                    Iniciar Gravação
+                  </motion.button>
+                </motion.div>
+              ) : (
+                <div className="grid gap-4">
+                  {recordings.map((recording, index) => (
+                    <motion.div
+                      key={recording.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="glass rounded-xl p-6"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4 flex-1">
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => toggleRecordingSelection(recording.id)}
+                            className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                              selectedRecordings.includes(recording.id)
+                                ? 'bg-emerald-500 border-emerald-500'
+                                : 'border-gray-400 hover:border-emerald-400'
+                            }`}
+                          >
+                            {selectedRecordings.includes(recording.id) && (
+                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </motion.button>
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <h3 className="font-bold text-lg">{recording.name}</h3>
+                              {recording.aiData && (
+                                <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">
+                                  IA Analisado
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-4 text-sm text-gray-400">
+                              <span>{new Date(recording.date).toLocaleDateString()}</span>
+                              <span>{formatTime(recording.duration)}</span>
+                              {recording.aiData && (
+                                <span className="text-emerald-400">
+                                  Sentiment: {Math.round(recording.aiData.sentiment * 100)}%
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <audio 
+                            controls 
+                            src={recording.blob}
+                            className="h-8"
+                            style={{ filter: 'invert(1)' }}
+                          />
+                          
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => downloadRecording(recording)}
+                            className="p-2 glass rounded-lg hover:bg-green-500/20"
+                            title="Baixar gravação"
+                          >
+                            <Download className="w-4 h-4" />
+                          </motion.button>
+                          
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => shareRecording(recording)}
+                            className="p-2 glass rounded-lg hover:bg-blue-500/20"
+                            title="Compartilhar gravação"
+                          >
+                            <Upload className="w-4 h-4" />
+                          </motion.button>
+                          
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setSelectedRecordingForCollaboration(
+                              selectedRecordingForCollaboration === recording.id ? null : recording.id
+                            )}
+                            className={`p-2 glass rounded-lg ${
+                              selectedRecordingForCollaboration === recording.id
+                                ? 'bg-purple-500/20 hover:bg-purple-500/30'
+                                : 'hover:bg-purple-500/20'
+                            }`}
+                            title="Colaboração"
+                          >
+                            <Users className="w-4 h-4" />
+                          </motion.button>
+                          
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => deleteRecording(recording.id)}
+                            className="p-2 glass rounded-lg hover:bg-red-500/20"
+                            title="Excluir gravação"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </motion.button>
+                        </div>
+                      </div>
+                      
+                      {/* Collaboration Features */}
+                      {selectedRecordingForCollaboration === recording.id && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-4 pt-4 border-t border-gray-700"
+                        >
+                          <CollaborationFeatures
+                            recordingId={recording.id}
+                            comments={comments.filter(c => c.id === recording.id)}
+                            onAddComment={(content, mentions) => {
+                              const newComment = {
+                                id: Date.now().toString(),
+                                userId: user?.id || 'user',
+                                userName: user?.name || 'Usuário',
+                                content,
+                                mentions,
+                                createdAt: new Date().toISOString()
+                              }
+                              setComments([...comments, newComment])
+                            }}
+                            onShare={(userId, permission) => {
+                              shareRecording(recording)
+                            }}
+                          />
+                        </motion.div>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === 'analytics' && (
+            <motion.div
+              key="analytics"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+            >
+              {!canAccessFeature('analytics') && (
+                <div className="lg:col-span-2 glass rounded-xl p-8 text-center">
+                  <h2 className="text-2xl font-bold mb-4">Recurso Premium de Analíticos</h2>
+                  <p className="text-gray-300 mb-6">Atualize para Pro ou Enterprise para acessar análises avançadas</p>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => openUpgradeModal('pro')}
+                    className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg font-medium"
+                  >
+                    Upgrade Now
+                  </motion.button>
+                </div>
+              )}
+              
+              {canAccessFeature('analytics') && (
+                <>
+                {/* Advanced Visualizations */}
+                {recordings.length > 0 && recordings.some(r => r.aiData) && (
+                  <div className="lg:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <SentimentHeatmap recordings={recordings.filter(r => r.aiData)} />
+                    <KeywordWordCloud recordings={recordings.filter(r => r.aiData)} />
+                  </div>
+                )}
+                {recordings.length > 0 && recordings.some(r => r.aiData?.realTimeData) && (
+                  <div className="lg:col-span-2 mb-6">
+                    <InteractiveTimeline recordings={recordings.filter(r => r.aiData?.realTimeData)} />
+                  </div>
+                )}
+
+                {/* Advanced Analysis Components */}
+                {recordings.length > 0 && recordings.some(r => r.aiData?.advancedAnalysis) && (
+                  <>
+                    {/* Emotion Heatmap */}
+                    {recordings.some(r => r.aiData?.advancedAnalysis?.emotionAnalysis?.emotionTimeline) && (
+                      <div className="lg:col-span-2 mb-6">
+                        <EmotionHeatmap
+                          emotionTimeline={
+                            recordings
+                              .find(r => r.aiData?.advancedAnalysis?.emotionAnalysis?.emotionTimeline)
+                              ?.aiData?.advancedAnalysis?.emotionAnalysis?.emotionTimeline || []
+                          }
+                          duration={
+                            recordings
+                              .find(r => r.aiData?.advancedAnalysis?.emotionAnalysis?.emotionTimeline)
+                              ?.duration || 0
+                          }
+                        />
+                      </div>
+                    )}
+
+                    {/* Interactive Timeline Advanced */}
+                    {recordings.some(r => r.aiData?.advancedAnalysis) && (
+                      <div className="lg:col-span-2 mb-6">
+                        {(() => {
+                          const recordingWithAdvanced = recordings.find(r => r.aiData?.advancedAnalysis)
+                          if (!recordingWithAdvanced?.aiData?.advancedAnalysis) return null
+                          
+                          const advanced = recordingWithAdvanced.aiData.advancedAnalysis
+                          const points = [
+                            ...(advanced.emotionAnalysis?.emotions?.slice(0, 5).map((e: any) => ({
+                              timestamp: e.timestamp,
+                              type: 'emotion' as const,
+                              label: `Emoção: ${e.emotion}`,
+                              description: `Intensidade: ${(e.intensity * 100).toFixed(0)}%`,
+                              importance: e.intensity > 0.7 ? 'high' as const : 'medium' as const,
+                            })) || []),
+                            ...(advanced.silenceAnalysis?.silences?.slice(0, 3).map((s: any) => ({
+                              timestamp: s.start,
+                              type: 'silence' as const,
+                              label: `Silêncio ${s.type}`,
+                              description: `Duração: ${s.duration}s`,
+                              importance: s.type === 'awkward' ? 'high' as const : 'medium' as const,
+                            })) || []),
+                            ...(advanced.interruptionAnalysis?.interruptions?.slice(0, 3).map((i: any) => ({
+                              timestamp: i.timestamp,
+                              type: 'interruption' as const,
+                              label: `Interrupção por ${i.interrupter}`,
+                              description: i.context,
+                              importance: 'high' as const,
+                            })) || []),
+                            ...(advanced.closingAnalysis?.closingAttempts?.slice(0, 2).map((c: any) => ({
+                              timestamp: c.timestamp,
+                              type: 'closing' as const,
+                              label: `Tentativa de Fechamento ${c.success ? 'Bem-sucedida' : ''}`,
+                              description: c.response,
+                              importance: c.success ? 'high' as const : 'medium' as const,
+                            })) || []),
+                          ]
+                          
+                          return (
+                            <InteractiveTimelineAdvanced
+                              duration={recordingWithAdvanced.duration}
+                              points={points}
+                              emotionTimeline={advanced.emotionAnalysis?.emotionTimeline || []}
+                            />
+                          )
+                        })()}
+                      </div>
+                    )}
+
+                    {/* Speech Chart */}
+                    {recordings.some(r => r.aiData?.advancedAnalysis?.interruptionAnalysis) && (
+                      <div className="lg:col-span-2 mb-6">
+                        {(() => {
+                          const recordingWithAdvanced = recordings.find(r => r.aiData?.advancedAnalysis)
+                          if (!recordingWithAdvanced?.aiData?.advancedAnalysis) return null
+                          
+                          const advanced = recordingWithAdvanced.aiData.advancedAnalysis
+                          // Criar segmentos de fala baseados na análise
+                          const segments = [
+                            {
+                              timestamp: '0:00',
+                              speaker: 'salesperson' as const,
+                              duration: 30,
+                              wordCount: 50,
+                            },
+                            {
+                              timestamp: '0:30',
+                              speaker: 'customer' as const,
+                              duration: 25,
+                              wordCount: 40,
+                            },
+                          ]
+                          
+                          return (
+                            <SpeechChart
+                              segments={segments}
+                              interruptions={advanced.interruptionAnalysis?.interruptions || []}
+                            />
+                          )
+                        })()}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Next Steps Display */}
+                {nextSteps && (
+                  <div className="lg:col-span-2 glass rounded-xl p-6 mb-6">
+                    <h2 className="text-xl font-bold mb-4">Próximos Passos Sugeridos</h2>
+                    
+                    {nextSteps.immediate && nextSteps.immediate.length > 0 && (
+                      <div className="mb-6">
+                        <h3 className="text-lg font-semibold mb-3 text-emerald-400">Ações Imediatas</h3>
+                        <div className="space-y-2">
+                          {nextSteps.immediate.map((step: any, index: number) => (
+                            <motion.div
+                              key={index}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              className={`p-4 rounded-lg border ${
+                                step.priority === 'high' ? 'border-red-500/30 bg-red-500/10' :
+                                step.priority === 'medium' ? 'border-yellow-500/30 bg-yellow-500/10' :
+                                'border-blue-500/30 bg-blue-500/10'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-bold">{step.action}</span>
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                      step.priority === 'high' ? 'bg-red-500/20 text-red-300' :
+                                      step.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                                      'bg-blue-500/20 text-blue-300'
+                                    }`}>
+                                      {step.priority}
+                                    </span>
+                                    <span className="text-xs text-gray-400">{step.deadline}</span>
+                                  </div>
+                                  <p className="text-sm text-gray-300">{step.description}</p>
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {nextSteps.followUpEmail && (
+                      <div className="mb-6">
+                        <h3 className="text-lg font-semibold mb-3 text-blue-400">Email de Follow-up</h3>
+                        <div className="p-4 bg-gray-800/50 rounded-lg">
+                          <div className="mb-2">
+                            <span className="text-sm text-gray-400">Assunto:</span>
+                            <p className="font-medium">{nextSteps.followUpEmail.subject}</p>
+                          </div>
+                          <div className="mt-3">
+                            <span className="text-sm text-gray-400">Corpo:</span>
+                            <p className="text-sm text-gray-300 whitespace-pre-wrap mt-1">
+                              {nextSteps.followUpEmail.body}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {nextSteps.proposalOutline && (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-3 text-purple-400">Estrutura da Proposta</h3>
+                        <div className="p-4 bg-gray-800/50 rounded-lg">
+                          <h4 className="font-bold mb-3">{nextSteps.proposalOutline.title}</h4>
+                          {nextSteps.proposalOutline.sections && (
+                            <div className="space-y-2 mb-4">
+                              {nextSteps.proposalOutline.sections
+                                .sort((a: any, b: any) => a.order - b.order)
+                                .map((section: any, index: number) => (
+                                  <div key={index} className="border-l-2 border-purple-500 pl-3">
+                                    <h5 className="font-semibold">{section.heading}</h5>
+                                    <p className="text-sm text-gray-400">{section.content}</p>
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+                          {nextSteps.proposalOutline.keyPoints && (
+                            <div className="mt-4">
+                              <span className="text-sm font-semibold">Pontos-chave:</span>
+                              <ul className="list-disc list-inside mt-2 space-y-1">
+                                {nextSteps.proposalOutline.keyPoints.map((point: string, index: number) => (
+                                  <li key={index} className="text-sm text-gray-300">{point}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {nextSteps.proposalOutline.pricingRecommendation && (
+                            <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded">
+                              <span className="text-sm font-semibold text-emerald-300">Recomendação de Preço:</span>
+                              <p className="text-sm text-gray-300 mt-1">{nextSteps.proposalOutline.pricingRecommendation}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Advanced Analysis Summary */}
+                {advancedAnalysis && (
+                  <div className="lg:col-span-2 glass rounded-xl p-6 mb-6">
+                    <h2 className="text-xl font-bold mb-4">Análise Avançada</h2>
+                    
+                    {advancedAnalysis.persuasionScore && (
+                      <div className="mb-6">
+                        <h3 className="text-lg font-semibold mb-3">Score de Persuasão: {advancedAnalysis.persuasionScore.overallScore}/100</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          {Object.entries(advancedAnalysis.persuasionScore.factors || {}).map(([key, value]: [string, any]) => (
+                            <div key={key} className="p-3 bg-gray-800/50 rounded-lg">
+                              <div className="text-sm text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</div>
+                              <div className="text-2xl font-bold text-emerald-400">{(value * 100).toFixed(0)}%</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {advancedAnalysis.rapportAnalysis && (
+                      <div className="mb-6">
+                        <h3 className="text-lg font-semibold mb-3">
+                          Score de Rapport: {(advancedAnalysis.rapportAnalysis.rapportScore * 100).toFixed(0)}%
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-400">Tendência:</span>
+                          <span className={`px-3 py-1 rounded text-sm ${
+                            advancedAnalysis.rapportAnalysis.rapportTrend === 'improving' ? 'bg-green-500/20 text-green-300' :
+                            advancedAnalysis.rapportAnalysis.rapportTrend === 'declining' ? 'bg-red-500/20 text-red-300' :
+                            'bg-gray-500/20 text-gray-300'
+                          }`}>
+                            {advancedAnalysis.rapportAnalysis.rapportTrend === 'improving' ? 'Melhorando' :
+                             advancedAnalysis.rapportAnalysis.rapportTrend === 'declining' ? 'Declinando' :
+                             'Estável'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {advancedAnalysis.closingAnalysis && (
+                      <div className="mb-6">
+                        <h3 className="text-lg font-semibold mb-3">Análise de Fechamento</h3>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="p-3 bg-gray-800/50 rounded-lg text-center">
+                            <div className="text-sm text-gray-400">Tentativas</div>
+                            <div className="text-2xl font-bold text-blue-400">
+                              {advancedAnalysis.closingAnalysis.closingAttemptsCount || 0}
+                            </div>
+                          </div>
+                          <div className="p-3 bg-gray-800/50 rounded-lg text-center">
+                            <div className="text-sm text-gray-400">Sucessos</div>
+                            <div className="text-2xl font-bold text-green-400">
+                              {advancedAnalysis.closingAnalysis.successfulCloses || 0}
+                            </div>
+                          </div>
+                          <div className="p-3 bg-gray-800/50 rounded-lg text-center">
+                            <div className="text-sm text-gray-400">Taxa de Sucesso</div>
+                            <div className="text-2xl font-bold text-purple-400">
+                              {(advancedAnalysis.closingAnalysis.closingRate * 100).toFixed(0)}%
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {advancedAnalysis.interruptionAnalysis && (
+                      <div className="mb-6">
+                        <h3 className="text-lg font-semibold mb-3">Análise de Interrupções</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="p-3 bg-gray-800/50 rounded-lg">
+                            <div className="text-sm text-gray-400">Vendedor</div>
+                            <div className="text-xl font-bold text-blue-400">
+                              {advancedAnalysis.interruptionAnalysis.salespersonInterruptions || 0}
+                            </div>
+                          </div>
+                          <div className="p-3 bg-gray-800/50 rounded-lg">
+                            <div className="text-sm text-gray-400">Cliente</div>
+                            <div className="text-xl font-bold text-green-400">
+                              {advancedAnalysis.interruptionAnalysis.customerInterruptions || 0}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Overview Stats */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="lg:col-span-2 glass rounded-xl p-6 mb-6"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-4">
+                      <h2 className="text-xl font-bold">Visão Geral dos Analíticos</h2>
+                      {selectedRecordings.length > 0 && (
+                        <div className="px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full text-sm">
+                          {selectedRecordings.length} gravações selecionadas
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <span className="text-sm text-emerald-300">Download Report:</span>
+                      <ReportDownloadButtons type="analytics" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-emerald-400">
+                        {analyticsData.totalRecordings}
+                      </div>
+                      <div className="text-sm text-gray-400">Total de Gravações</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-400">
+                        {Math.round(analyticsData.totalDuration / 60)}m
+                      </div>
+                      <div className="text-sm text-gray-400">Duração Total</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-400">
+                        {Math.round(analyticsData.avgSentiment * 100)}%
+                      </div>
+                      <div className="text-sm text-gray-400">Sentimento Médio</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-purple-400">
+                        {Math.round(analyticsData.avgEngagement * 100)}%
+                      </div>
+                      <div className="text-sm text-gray-400">Engajamento Médio</div>
+                    </div>
+                  </div>
+                </motion.div>
+                
+                {realTimeData.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="lg:col-span-2 glass rounded-xl p-6 mb-6"
+                  >
+                    <h2 className="text-xl font-bold mb-4">Métricas da Sessão Atual</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-emerald-400">
+                          {Math.round(sessionMetrics.avgSentiment * 100)}%
+                        </div>
+                        <div className="text-sm text-gray-400">Sentimento da Sessão</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-400">
+                          {Math.round(sessionMetrics.avgEngagement * 100)}%
+                        </div>
+                        <div className="text-sm text-gray-400">Engajamento da Sessão</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-400">
+                          {sessionMetrics.peakMoments}
+                        </div>
+                        <div className="text-sm text-gray-400">Momentos de Pico</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-purple-400">
+                          {sessionMetrics.totalWords}
+                        </div>
+                        <div className="text-sm text-gray-400">Atividade de Voz</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-orange-400">
+                          {Math.round(sessionMetrics.energyLevel * 100)}%
+                        </div>
+                        <div className="text-sm text-gray-400">Nível de Energia</div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              {/* Sentiment Analysis */}
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="glass rounded-xl p-6"
+              >
+                <h2 className="text-xl font-bold mb-6">Sentimento e Engajamento</h2>
+                {(() => {
+                  const targetRecordings = selectedRecordings.length > 0 
+                    ? recordings.filter(rec => selectedRecordings.includes(rec.id))
+                    : recordings
+                  
+                  const combinedData = targetRecordings
+                    .filter(rec => rec.aiData?.realTimeData)
+                    .flatMap(rec => rec.aiData!.realTimeData)
+                    .slice(-50) // Últimos 50 pontos
+                  
+                  return combinedData.length > 0 || realTimeData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={combinedData.length > 0 ? combinedData : realTimeData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis dataKey="time" stroke="#9CA3AF" />
+                        <YAxis stroke="#9CA3AF" />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(0,0,0,0.8)', 
+                            border: '1px solid #374151',
+                            borderRadius: '8px'
+                          }} 
+                        />
+                        <Line type="monotone" dataKey="sentiment" stroke="#06b6d4" strokeWidth={3} name="Sentiment" />
+                        <Line type="monotone" dataKey="engagement" stroke="#3b82f6" strokeWidth={3} name="Engagement" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="text-center py-12 text-gray-400">
+                      <TrendingUp className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                      <p>Nenhum dado de análise disponível</p>
+                      <p className="text-sm mt-2">Faça gravações para ver dados de IA</p>
+                    </div>
+                  )
+                })()}
+              </motion.div>
+
+              {/* Performance Radar */}
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="glass rounded-xl p-6"
+              >
+                <h2 className="text-xl font-bold mb-6">Métricas de Desempenho</h2>
+                {analyticsData.totalRecordings > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <RadarChart data={[
+                      { metric: 'Qualidade de Áudio', value: Math.round(analyticsData.avgEngagement * 100), fullMark: 100 },
+                      { metric: 'Consistência', value: Math.min(analyticsData.totalRecordings * 10, 100), fullMark: 100 },
+                      { metric: 'Sentiment Positivo', value: Math.round(analyticsData.avgSentiment * 100), fullMark: 100 },
+                      { metric: 'Frequência de Uso', value: Math.min(analyticsData.totalRecordings * 15, 100), fullMark: 100 },
+                      { metric: 'Duração Média', value: Math.min((analyticsData.totalDuration / analyticsData.totalRecordings) * 2, 100), fullMark: 100 }
+                    ]}>
+                      <PolarGrid />
+                      <PolarAngleAxis dataKey="metric" />
+                      <PolarRadiusAxis angle={90} domain={[0, 100]} />
+                      <Radar
+                        name="Performance"
+                        dataKey="value"
+                        stroke="#06b6d4"
+                        fill="#06b6d4"
+                        fillOpacity={0.3}
+                      />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center py-12 text-gray-400">
+                    <Brain className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p>Métricas de performance indisponíveis</p>
+                    <p className="text-sm mt-2">Faça mais gravações para análise completa</p>
+                  </div>
+                )}
+              </motion.div>
+
+              {/* Keywords Analysis */}
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className="glass rounded-xl p-6"
+              >
+                <h2 className="text-xl font-bold mb-6">Key Topics</h2>
+                {analyticsData.topKeywords.length > 0 ? (
+                  <div className="space-y-3">
+                    {analyticsData.topKeywords.map((keyword, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.1 * index }}
+                        className="flex items-center justify-between p-3 glass rounded-lg"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-3 h-3 rounded-full ${
+                            keyword.sentiment === 'positive' ? 'bg-green-400' :
+                            keyword.sentiment === 'negative' ? 'bg-red-400' :
+                            'bg-gray-400'
+                          }`} />
+                          <span className="font-medium">{keyword.word}</span>
+                        </div>
+                        <span className="text-sm text-gray-400">{keyword.count}x</span>
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-400">
+                    <p>Nenhum dado disponível</p>
+                    <p className="text-sm mt-2">Faça algumas gravações para ver as análises</p>
+                  </div>
+                )}
+              </motion.div>
+
+              {/* Weekly Overview */}
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className="glass rounded-xl p-6"
+              >
+                <h2 className="text-xl font-bold mb-6">Weekly Activity</h2>
+                {analyticsData.weeklyStats.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={analyticsData.weeklyStats}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="date" stroke="#9CA3AF" />
+                      <YAxis stroke="#9CA3AF" />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'rgba(0,0,0,0.8)', 
+                          border: '1px solid #374151',
+                          borderRadius: '8px'
+                        }} 
+                      />
+                      <Bar dataKey="recordings" fill="#06b6d4" name="Gravações" />
+                      <Bar dataKey="avgDuration" fill="#3b82f6" name="Duração Média (min)" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center py-12 text-gray-400">
+                    <BarChart3 className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p>Nenhuma atividade registrada</p>
+                    <p className="text-sm mt-2">Comece a gravar para ver estatísticas</p>
+                  </div>
+                )}
+              </motion.div>
+                </>
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === 'performance' && (
+            <motion.div
+              key="performance"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              {/* Performance Header */}
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="glass rounded-xl p-6"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold">Performance Dashboard</h2>
+                  <div className="flex items-center space-x-6">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-sm text-emerald-300">Download Report:</span>
+                      <ReportDownloadButtons type="performance" />
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold gradient-text">{performanceData.overallScore}</div>
+                      <div className="text-sm text-emerald-300">Overall Score</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Performance Trend */}
+                <div className="mb-6">
+                  <h3 className="text-lg font-bold mb-4">7-Day Performance Trend</h3>
+                  {performanceData.trendData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={performanceData.trendData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis dataKey="date" stroke="#9CA3AF" />
+                        <YAxis stroke="#9CA3AF" />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(0,0,0,0.8)', 
+                            border: '1px solid #374151',
+                            borderRadius: '8px'
+                          }} 
+                        />
+                        <Line type="monotone" dataKey="score" stroke="#06b6d4" strokeWidth={3} name="Score" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="text-center py-8 text-gray-400">
+                      <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>Faça mais gravações para ver tendências</p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Skills Breakdown */}
+                <motion.div 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="glass rounded-xl p-6"
+                >
+                  <h3 className="text-xl font-bold mb-4">Skills Breakdown</h3>
+                  <div className="space-y-4">
+                    {performanceData.skillsBreakdown.map((skill, index) => (
+                      <motion.div
+                        key={skill.skill}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                        className="p-4 glass rounded-lg"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium">{skill.skill}</span>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-lg font-bold">{skill.current}%</span>
+                            <span className={`text-sm ${
+                              skill.improvement >= 0 ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {skill.improvement >= 0 ? '+' : ''}{skill.improvement}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2 mb-1">
+                          <motion.div
+                            animate={{ width: `${skill.current}%` }}
+                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full"
+                            transition={{ duration: 1, delay: index * 0.1 }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-emerald-300">
+                          <span>Current: {skill.current}%</span>
+                          <span>Target: {skill.target}%</span>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+
+                {/* Achievements */}
+                <motion.div 
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="glass rounded-xl p-6"
+                >
+                  <h3 className="text-xl font-bold mb-4">Recent Achievements</h3>
+                  {performanceData.achievements.length > 0 ? (
+                    <div className="space-y-3">
+                      {performanceData.achievements.map((achievement, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className="flex items-center space-x-3 p-3 glass rounded-lg"
+                        >
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            achievement.type === 'milestone' ? 'bg-yellow-500/20 text-yellow-400' :
+                            achievement.type === 'improvement' ? 'bg-green-500/20 text-green-400' :
+                            'bg-blue-500/20 text-blue-400'
+                          }`}>
+                            {achievement.type === 'milestone' ? '🏆' :
+                             achievement.type === 'improvement' ? '📈' : '🔥'}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-medium">{achievement.title}</h4>
+                            <p className="text-sm text-blue-300">{achievement.description}</p>
+                            <p className="text-xs text-emerald-400">{achievement.date}</p>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-blue-300">
+                      <div className="text-4xl mb-2">🏆</div>
+                      <p>Faça gravações para desbloquear conquistas</p>
+                    </div>
+                  )}
+                </motion.div>
+              </div>
+
+              {/* Recommendations */}
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="glass rounded-xl p-6"
+              >
+                <h3 className="text-xl font-bold mb-4">AI Recommendations</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {performanceData.recommendations.map((rec, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.1 }}
+                      className={`p-4 rounded-lg border-l-4 ${
+                        rec.priority === 'high' ? 'bg-red-500/10 border-red-500' :
+                        rec.priority === 'medium' ? 'bg-yellow-500/10 border-yellow-500' :
+                        'bg-blue-500/10 border-blue-500'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <h4 className="font-medium">{rec.title}</h4>
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          rec.priority === 'high' ? 'bg-red-500/20 text-red-400' :
+                          rec.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-blue-500/20 text-blue-400'
+                        }`}>
+                          {rec.priority.toUpperCase()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-blue-200 mb-2">{rec.description}</p>
+                      <span className="text-xs text-emerald-300">{rec.category}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Loading Overlay */}
+      <AnimatePresence>
+        {(redirecting || isAnalyzing) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="glass rounded-xl p-8 text-center max-w-md w-full mx-4"
+            >
+              {redirecting ? (
+                <>
+                  <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4" />
+                  <h3 className="text-xl font-bold mb-2">Redirecionando...</h3>
+                  <p className="text-gray-300">Preparando sua página de pagamento</p>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4" />
+                  <h3 className="text-xl font-bold mb-2">Analisando Áudios</h3>
+                  <p className="text-gray-300 mb-4">IA processando suas gravações...</p>
+                  <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
+                    <motion.div
+                      animate={{ width: `${analysisProgress}%` }}
+                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full"
+                      transition={{ duration: 0.3 }}
+                    />
+                  </div>
+                  <p className="text-sm text-emerald-400">{analysisProgress}% concluído</p>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Notificação */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="fixed top-4 right-4 z-50"
+          >
+            <div className={`p-4 rounded-lg glass border-l-4 ${
+              notification.type === 'success' 
+                ? 'border-green-500 bg-green-500/10' 
+                : 'border-red-500 bg-red-500/10'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <span className={`text-2xl ${
+                  notification.type === 'success' ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {notification.type === 'success' ? '✓' : '⚠'}
+                </span>
+                <p className="text-white font-medium">{notification.message}</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Upgrade */}
+      <AnimatePresence>
+        {showUpgradeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowUpgradeModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="text-center mb-8">
+                <motion.div
+                  animate={{ rotate: [0, 10, -10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="text-6xl mb-4"
+                >
+                  🚀
+                </motion.div>
+                <h2 className="text-3xl font-bold gradient-text mb-2">Upgrade Your Plan</h2>
+                <p className="text-gray-300">Unlock advanced features and boost your sales performance</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                {Object.entries(plans).map(([key, plan]) => (
+                  <motion.div
+                    key={key}
+                    whileHover={{ scale: 1.02 }}
+                    onClick={() => setSelectedPlan(key)}
+                    className={`p-6 rounded-xl border-2 cursor-pointer transition-all ${
+                      selectedPlan === key
+                        ? 'border-emerald-500 bg-emerald-500/10'
+                        : 'border-gray-600 hover:border-gray-500'
+                    }`}
+                  >
+                    <div className="text-center mb-4">
+                      <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
+                      <div className="text-3xl font-bold">
+                        <span className="gradient-text">${plan.price}</span>
+                        <span className="text-sm text-gray-400">/month</span>
+                      </div>
+                    </div>
+                    
+                    <ul className="space-y-2">
+                      {plan.features.map((feature, index) => (
+                        <li key={index} className="flex items-center text-sm">
+                          <span className="text-green-400 mr-2">✓</span>
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  </motion.div>
+                ))}
+              </div>
+
+              <div className="flex space-x-4">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowUpgradeModal(false)}
+                  className="flex-1 py-3 px-6 border border-gray-600 rounded-lg font-medium hover:bg-gray-700 transition-colors"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleUpgrade}
+                  className="flex-1 py-3 px-6 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg font-medium"
+                >
+                  Upgrade to {plans[selectedPlan as keyof typeof plans].name}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}

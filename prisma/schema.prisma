@@ -1,0 +1,175 @@
+// Prisma Schema for CallInsight AI
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?   // Hashed password
+  plan          String    @default("free") // free, pro, enterprise
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  accounts      Account[]
+  sessions      Session[]
+  recordings    Recording[]
+  comments      Comment[]
+  sharedRecordings SharedRecording[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Recording {
+  id            String   @id @default(cuid())
+  userId        String
+  name          String
+  duration      Int      // seconds
+  audioUrl      String?  // S3 URL or storage path
+  audioBlob     String?  @db.Text // Base64 fallback
+  transcription String?  @db.Text
+  language      String?  @default("pt")
+  
+  // AI Analysis Data
+  sentiment     Float?
+  engagement    Float?
+  keywords      String[] // Array of keywords
+  summary       String?  @db.Text
+  positivePoints String[] @db.Text
+  improvementAreas String[] @db.Text
+  recommendations String[] @db.Text
+  
+  // Sales Indicators
+  objections    String[] @db.Text
+  buyingSignals String[] @db.Text
+  nextSteps     String?  @db.Text
+  
+  // Sentiment Analysis
+  customerSentiment Float?
+  salespersonSentiment Float?
+  
+  // Voice Analysis
+  voiceEmotion  String?  // happy, frustrated, neutral, etc.
+  speechRate    Float?   // words per minute
+  pauseCount    Int?     @default(0)
+  avgPauseDuration Float? // seconds
+  
+  // Real-time data
+  realTimeData  Json?    // Array of {time, sentiment, engagement}
+  
+  // Metadata
+  tags          String[] // Custom tags
+  category      String?  // demo, follow-up, closing, training, etc.
+  isTraining    Boolean  @default(false)
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  analyzedAt    DateTime?
+  
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments      Comment[]
+  sharedWith    SharedRecording[]
+  
+  @@index([userId])
+  @@index([createdAt])
+  @@index([category])
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  recordingId String
+  userId      String
+  content     String   @db.Text
+  mentions    String[] // User IDs mentioned
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  recording   Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([recordingId])
+}
+
+model SharedRecording {
+  id          String   @id @default(cuid())
+  recordingId String
+  userId      String   // User who shared
+  sharedWithUserId String // User it was shared with
+  permission  String   @default("view") // view, comment, edit
+  createdAt   DateTime @default(now())
+  
+  recording   Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([recordingId, sharedWithUserId])
+  @@index([sharedWithUserId])
+}
+
+model AnalysisCache {
+  id          String   @id @default(cuid())
+  audioHash   String   @unique // Hash of audio file
+  transcription String? @db.Text
+  analysis    Json?    // Cached GPT analysis
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  
+  @@index([audioHash])
+  @@index([expiresAt])
+}
+
+model AnalysisJob {
+  id          String   @id @default(cuid())
+  recordingId String   @unique
+  status      String   @default("pending") // pending, processing, completed, failed
+  progress    Int      @default(0) // 0-100
+  error       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  completedAt DateTime?
+  
+  @@index([status])
+  @@index([createdAt])
+}
+
