@@ -1,162 +1,182 @@
-import OpenAI from 'openai'
+import OpenAI from "openai";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-})
+  apiKey: process.env.OPENAI_API_KEY || "",
+});
 
 export interface EmotionAnalysis {
   emotions: Array<{
-    emotion: 'joy' | 'frustration' | 'anxiety' | 'confidence' | 'neutral' | 'excitement' | 'calm' | 'anger'
-    timestamp: string // "MM:SS"
-    intensity: number // 0-1
-    speaker: 'salesperson' | 'customer' | 'unknown'
-  }>
-  dominantEmotion: string
+    emotion:
+      | "joy"
+      | "frustration"
+      | "anxiety"
+      | "confidence"
+      | "neutral"
+      | "excitement"
+      | "calm"
+      | "anger";
+    timestamp: string; // "MM:SS"
+    intensity: number; // 0-1
+    speaker: "salesperson" | "customer" | "unknown";
+  }>;
+  dominantEmotion: string;
   emotionTimeline: Array<{
-    time: string
-    salespersonEmotion: string
-    customerEmotion: string
-  }>
+    time: string;
+    salespersonEmotion: string;
+    customerEmotion: string;
+  }>;
 }
 
 export interface SilenceAnalysis {
   silences: Array<{
-    start: string // "MM:SS"
-    end: string // "MM:SS"
-    duration: number // seconds
-    type: 'strategic' | 'discomfort' | 'thinking' | 'awkward'
-    context: string
-  }>
-  totalSilenceTime: number
-  averageSilenceDuration: number
-  strategicPauses: number
-  uncomfortablePauses: number
+    start: string; // "MM:SS"
+    end: string; // "MM:SS"
+    duration: number; // seconds
+    type: "strategic" | "discomfort" | "thinking" | "awkward";
+    context: string;
+  }>;
+  totalSilenceTime: number;
+  averageSilenceDuration: number;
+  strategicPauses: number;
+  uncomfortablePauses: number;
 }
 
 export interface InterruptionAnalysis {
   interruptions: Array<{
-    timestamp: string
-    interrupter: 'salesperson' | 'customer'
-    interrupted: 'salesperson' | 'customer'
-    context: string
-  }>
-  salespersonInterruptions: number
-  customerInterruptions: number
-  interruptionRatio: number // salesperson/customer
+    timestamp: string;
+    interrupter: "salesperson" | "customer";
+    interrupted: "salesperson" | "customer";
+    context: string;
+  }>;
+  salespersonInterruptions: number;
+  customerInterruptions: number;
+  interruptionRatio: number; // salesperson/customer
 }
 
 export interface ToneAnalysis {
   tones: Array<{
-    timestamp: string
-    speaker: 'salesperson' | 'customer'
-    tone: 'assertive' | 'empathetic' | 'defensive' | 'neutral' | 'aggressive' | 'passive' | 'enthusiastic'
-    confidence: number // 0-1
-  }>
+    timestamp: string;
+    speaker: "salesperson" | "customer";
+    tone:
+      | "assertive"
+      | "empathetic"
+      | "defensive"
+      | "neutral"
+      | "aggressive"
+      | "passive"
+      | "enthusiastic";
+    confidence: number; // 0-1
+  }>;
   salespersonToneProfile: {
-    dominant: string
-    assertiveness: number
-    empathy: number
-    defensiveness: number
-  }
+    dominant: string;
+    assertiveness: number;
+    empathy: number;
+    defensiveness: number;
+  };
   customerToneProfile: {
-    dominant: string
-    receptiveness: number
-    skepticism: number
-    engagement: number
-  }
+    dominant: string;
+    receptiveness: number;
+    skepticism: number;
+    engagement: number;
+  };
 }
 
 export interface CompetitiveKeywordsAnalysis {
   competitors: Array<{
-    name: string
-    mentions: number
-    context: string[]
-    sentiment: 'positive' | 'negative' | 'neutral'
-  }>
-  competitiveMentions: number
-  competitivePressure: 'low' | 'medium' | 'high'
+    name: string;
+    mentions: number;
+    context: string[];
+    sentiment: "positive" | "negative" | "neutral";
+  }>;
+  competitiveMentions: number;
+  competitivePressure: "low" | "medium" | "high";
 }
 
 export interface QuestionAnalysis {
   questions: Array<{
-    timestamp: string
-    speaker: 'salesperson' | 'customer'
-    text: string
-    type: 'open' | 'closed' | 'probing' | 'objection' | 'clarification'
-    quality: 'high' | 'medium' | 'low'
-  }>
+    timestamp: string;
+    speaker: "salesperson" | "customer";
+    text: string;
+    type: "open" | "closed" | "probing" | "objection" | "clarification";
+    quality: "high" | "medium" | "low";
+  }>;
   questionCount: {
-    salesperson: number
-    customer: number
-  }
+    salesperson: number;
+    customer: number;
+  };
   statementCount: {
-    salesperson: number
-    customer: number
-  }
-  questionToStatementRatio: number
-  openQuestionRatio: number
+    salesperson: number;
+    customer: number;
+  };
+  questionToStatementRatio: number;
+  openQuestionRatio: number;
 }
 
 export interface ClosingAnalysis {
   closingAttempts: Array<{
-    timestamp: string
-    type: 'assumptive' | 'alternative' | 'summary' | 'direct' | 'trial'
-    success: boolean
-    response: string
-  }>
-  closingAttemptsCount: number
-  successfulCloses: number
-  closingRate: number // 0-1
-  bestClosingMoment: string // timestamp
+    timestamp: string;
+    type: "assumptive" | "alternative" | "summary" | "direct" | "trial";
+    success: boolean;
+    response: string;
+  }>;
+  closingAttemptsCount: number;
+  successfulCloses: number;
+  closingRate: number; // 0-1
+  bestClosingMoment: string; // timestamp
 }
 
 export interface RapportAnalysis {
-  rapportScore: number // 0-1
+  rapportScore: number; // 0-1
   rapportMoments: Array<{
-    timestamp: string
-    type: 'shared_interests' | 'humor' | 'empathy' | 'agreement' | 'personal_connection'
-    strength: number // 0-1
-  }>
-  connectionIndicators: string[]
-  rapportTrend: 'improving' | 'stable' | 'declining'
+    timestamp: string;
+    type:
+      | "shared_interests"
+      | "humor"
+      | "empathy"
+      | "agreement"
+      | "personal_connection";
+    strength: number; // 0-1
+  }>;
+  connectionIndicators: string[];
+  rapportTrend: "improving" | "stable" | "declining";
 }
 
 export interface PersuasionScore {
-  overallScore: number // 0-100
+  overallScore: number; // 0-100
   factors: {
-    storytelling: number // 0-1
-    socialProof: number // 0-1
-    urgency: number // 0-1
-    reciprocity: number // 0-1
-    authority: number // 0-1
-    consistency: number // 0-1
-  }
+    storytelling: number; // 0-1
+    socialProof: number; // 0-1
+    urgency: number; // 0-1
+    reciprocity: number; // 0-1
+    authority: number; // 0-1
+    consistency: number; // 0-1
+  };
   persuasionTechniques: Array<{
-    technique: string
-    usage: number
-    effectiveness: number
-  }>
-  recommendations: string[]
+    technique: string;
+    usage: number;
+    effectiveness: number;
+  }>;
+  recommendations: string[];
 }
 
 export interface AdvancedAnalysisResult {
-  emotionAnalysis: EmotionAnalysis
-  silenceAnalysis: SilenceAnalysis
-  interruptionAnalysis: InterruptionAnalysis
-  toneAnalysis: ToneAnalysis
-  competitiveKeywords: CompetitiveKeywordsAnalysis
-  questionAnalysis: QuestionAnalysis
-  closingAnalysis: ClosingAnalysis
-  rapportAnalysis: RapportAnalysis
-  persuasionScore: PersuasionScore
+  emotionAnalysis: EmotionAnalysis;
+  silenceAnalysis: SilenceAnalysis;
+  interruptionAnalysis: InterruptionAnalysis;
+  toneAnalysis: ToneAnalysis;
+  competitiveKeywords: CompetitiveKeywordsAnalysis;
+  questionAnalysis: QuestionAnalysis;
+  closingAnalysis: ClosingAnalysis;
+  rapportAnalysis: RapportAnalysis;
+  persuasionScore: PersuasionScore;
   objectionTypes: {
-    price: number
-    timing: number
-    authority: number
-    need: number
-    product: number
-    other: number
-  }
+    price: number;
+    timing: number;
+    authority: number;
+    need: number;
+    product: number;
+    other: number;
+  };
 }
 
 export async function performAdvancedAnalysis(
@@ -172,7 +192,7 @@ Transcrição:
 
 Duração: ${duration} segundos
 
-${segments ? `Segmentos temporais: ${JSON.stringify(segments)}` : ''}
+${segments ? `Segmentos temporais: ${JSON.stringify(segments)}` : ""}
 
 Forneça uma análise completa com os seguintes campos (responda APENAS em JSON válido):
 
@@ -331,47 +351,46 @@ Forneça uma análise completa com os seguintes campos (responda APENAS em JSON 
     "product": number,
     "other": number
   }
-}`
+}`;
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-audio-mini',
+      model: "gpt-audio-mini",
       messages: [
         {
-          role: 'system',
+          role: "system",
           content:
-            'Você é um analista especializado em análise avançada de chamadas de vendas. Sempre responda APENAS com JSON válido, sem texto adicional, markdown ou explicações.',
+            "Você é um analista especializado em análise avançada de chamadas de vendas. Sempre responda APENAS com JSON válido, sem texto adicional, markdown ou explicações.",
         },
         {
-          role: 'user',
+          role: "user",
           content: prompt,
         },
       ],
       temperature: 0.3,
-      response_format: { type: 'json_object' },
-    })
+      response_format: { type: "json_object" },
+    });
 
-    const analysisText = completion.choices[0]?.message?.content
+    const analysisText = completion.choices[0]?.message?.content;
 
     if (!analysisText) {
-      throw new Error('Resposta vazia da API')
+      throw new Error("Resposta vazia da API");
     }
 
-    let analysis
+    let analysis;
     try {
-      analysis = JSON.parse(analysisText)
+      analysis = JSON.parse(analysisText);
     } catch (parseError) {
-      const jsonMatch = analysisText.match(/\{[\s\S]*\}/)
+      const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        analysis = JSON.parse(jsonMatch[0])
+        analysis = JSON.parse(jsonMatch[0]);
       } else {
-        throw new Error('Não foi possível parsear a resposta')
+        throw new Error("Não foi possível parsear a resposta");
       }
     }
 
-    return analysis as AdvancedAnalysisResult
+    return analysis as AdvancedAnalysisResult;
   } catch (error: any) {
-    console.error('Erro na análise avançada:', error)
-    throw error
+    console.error("Erro na análise avançada:", error);
+    throw error;
   }
 }
-
