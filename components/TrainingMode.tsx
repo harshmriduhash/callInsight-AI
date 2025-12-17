@@ -1,50 +1,55 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { GraduationCap, Play, Pause, RotateCcw } from 'lucide-react'
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { GraduationCap, Play, Pause, RotateCcw } from "lucide-react";
 
 interface TrainingModeProps {
-  onStart: () => void
-  onStop: () => void
-  isRecording: boolean
-  scenario?: string
+  onStart: () => void;
+  onStop: () => void;
+  isRecording: boolean;
+  scenario?: string;
 }
 
 const scenarios = [
   {
-    id: 'objection-price',
-    name: 'Objeção de Preço',
-    description: 'Pratique lidar com objeções de preço',
+    id: "objection-price",
+    name: "Objeção de Preço",
+    description: "Pratique lidar com objeções de preço",
     script: 'Customer: "This is too expensive for our budget."',
   },
   {
-    id: 'objection-timeline',
-    name: 'Objeção de Prazo',
-    description: 'Pratique lidar com preocupações de prazo',
+    id: "objection-timeline",
+    name: "Objeção de Prazo",
+    description: "Pratique lidar com preocupações de prazo",
     script: 'Customer: "We need this implemented faster than you can deliver."',
   },
   {
-    id: 'competitor',
-    name: 'Menção de Concorrente',
-    description: 'Pratique responder a menções de concorrentes',
+    id: "competitor",
+    name: "Menção de Concorrente",
+    description: "Pratique responder a menções de concorrentes",
     script: 'Customer: "We are also considering [Competitor Name]."',
   },
   {
-    id: 'closing',
-    name: 'Fechamento de Venda',
-    description: 'Pratique técnicas de fechamento',
+    id: "closing",
+    name: "Fechamento de Venda",
+    description: "Pratique técnicas de fechamento",
     script: 'Customer: "I need to think about it."',
   },
-]
+];
 
-export default function TrainingMode({ onStart, onStop, isRecording, scenario }: TrainingModeProps) {
-  const [selectedScenario, setSelectedScenario] = useState<string | null>(null)
-  const [showScript, setShowScript] = useState(false)
+export default function TrainingMode({
+  onStart,
+  onStop,
+  isRecording,
+  scenario,
+}: TrainingModeProps) {
+  const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
+  const [showScript, setShowScript] = useState(false);
 
   const handleStart = () => {
     if (selectedScenario) {
-      onStart()
+      onStart();
     }
-  }
+  };
 
   return (
     <div className="space-y-6">
@@ -53,24 +58,26 @@ export default function TrainingMode({ onStart, onStop, isRecording, scenario }:
           <GraduationCap className="w-8 h-8 text-cyan-400" />
           <div>
             <h2 className="text-2xl font-bold">Modo de Treinamento</h2>
-            <p className="text-gray-300 text-sm">Pratique suas habilidades de vendas sem clientes reais</p>
+            <p className="text-gray-300 text-sm">
+              Pratique suas habilidades de vendas sem clientes reais
+            </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {scenarios.map(scen => (
+          {scenarios.map((scen) => (
             <motion.button
               key={scen.id}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => {
-                setSelectedScenario(scen.id)
-                setShowScript(true)
+                setSelectedScenario(scen.id);
+                setShowScript(true);
               }}
               className={`p-4 rounded-lg border-2 text-left transition-all ${
                 selectedScenario === scen.id
-                  ? 'border-cyan-500 bg-cyan-500/10'
-                  : 'border-gray-600 bg-black/20 hover:border-gray-500'
+                  ? "border-cyan-500 bg-cyan-500/10"
+                  : "border-gray-600 bg-black/20 hover:border-gray-500"
               }`}
             >
               <h3 className="font-bold mb-1">{scen.name}</h3>
@@ -95,7 +102,7 @@ export default function TrainingMode({ onStart, onStop, isRecording, scenario }:
               </button>
             </div>
             <p className="text-sm text-gray-300">
-              {scenarios.find(s => s.id === selectedScenario)?.script}
+              {scenarios.find((s) => s.id === selectedScenario)?.script}
             </p>
             <p className="text-xs text-gray-400 mt-2 italic">
               Pratique sua resposta para este cenário
@@ -111,8 +118,8 @@ export default function TrainingMode({ onStart, onStop, isRecording, scenario }:
             disabled={!selectedScenario || isRecording}
             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium ${
               !selectedScenario || isRecording
-                ? 'bg-gray-600 cursor-not-allowed'
-                : 'bg-gradient-to-r from-cyan-600 to-blue-600'
+                ? "bg-gray-600 cursor-not-allowed"
+                : "bg-gradient-to-r from-cyan-600 to-blue-600"
             }`}
           >
             {isRecording ? (
@@ -145,8 +152,8 @@ export default function TrainingMode({ onStart, onStop, isRecording, scenario }:
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => {
-                setSelectedScenario(null)
-                setShowScript(false)
+                setSelectedScenario(null);
+                setShowScript(false);
               }}
               className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium glass hover:bg-white/10"
             >
@@ -168,12 +175,11 @@ export default function TrainingMode({ onStart, onStop, isRecording, scenario }:
             <h3 className="font-bold">Sessão de Prática Ativa</h3>
           </div>
           <p className="text-sm text-gray-300">
-            Você está agora no modo de treinamento. Pratique sua resposta para o cenário.
-            Sua gravação será analisada com feedback imediato.
+            Você está agora no modo de treinamento. Pratique sua resposta para o
+            cenário. Sua gravação será analisada com feedback imediato.
           </p>
         </motion.div>
       )}
     </div>
-  )
+  );
 }
-
