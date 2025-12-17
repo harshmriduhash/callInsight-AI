@@ -1,9 +1,9 @@
-import { Moon, Sun } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { useDarkMode } from '../hooks/useDarkMode'
+import { Moon, Sun } from "lucide-react";
+import { motion } from "framer-motion";
+import { useDarkMode } from "../hooks/useDarkMode";
 
 export default function DarkModeToggle() {
-  const { isDark, toggle } = useDarkMode()
+  const { isDark, toggle } = useDarkMode();
 
   return (
     <motion.button
@@ -19,6 +19,5 @@ export default function DarkModeToggle() {
         <Moon className="w-5 h-5 text-gray-300" />
       )}
     </motion.button>
-  )
+  );
 }
-
