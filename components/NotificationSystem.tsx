@@ -1,89 +1,114 @@
-import { useState, useEffect, useRef, createContext, useContext } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { X, AlertCircle, CheckCircle, Info, AlertTriangle, Bell } from 'lucide-react'
+import { useState, useEffect, useRef, createContext, useContext } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  X,
+  AlertCircle,
+  CheckCircle,
+  Info,
+  AlertTriangle,
+  Bell,
+} from "lucide-react";
 
-export type NotificationType = 'success' | 'error' | 'info' | 'warning' | 'alert'
+export type NotificationType =
+  | "success"
+  | "error"
+  | "info"
+  | "warning"
+  | "alert";
 
 export interface Notification {
-  id: string
-  type: NotificationType
-  title: string
-  message: string
-  duration?: number
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  duration?: number;
   action?: {
-    label: string
-    onClick: () => void
-  }
+    label: string;
+    onClick: () => void;
+  };
 }
 
 interface NotificationContextType {
-  notifications: Notification[]
-  addNotification: (notification: Omit<Notification, 'id'>) => void
-  removeNotification: (id: string) => void
-  showAlert: (message: string, duringRecording?: boolean) => void
+  notifications: Notification[];
+  addNotification: (notification: Omit<Notification, "id">) => void;
+  removeNotification: (id: string) => void;
+  showAlert: (message: string, duringRecording?: boolean) => void;
 }
 
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
+const NotificationContext = createContext<NotificationContextType | undefined>(
+  undefined
+);
 
 export function useNotifications() {
-  const context = useContext(NotificationContext)
+  const context = useContext(NotificationContext);
   if (!context) {
-    throw new Error('useNotifications must be used within NotificationProvider')
+    throw new Error(
+      "useNotifications must be used within NotificationProvider"
+    );
   }
-  return context
+  return context;
 }
 
-export function NotificationProvider({ children }: { children: React.ReactNode }) {
-  const [notifications, setNotifications] = useState<Notification[]>([])
+export function NotificationProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  const addNotification = (notification: Omit<Notification, 'id'>) => {
-    const id = Math.random().toString(36).substr(2, 9)
+  const addNotification = (notification: Omit<Notification, "id">) => {
+    const id = Math.random().toString(36).substr(2, 9);
     const newNotification: Notification = {
       ...notification,
       id,
       duration: notification.duration || 5000,
-    }
-    setNotifications(prev => [...prev, newNotification])
+    };
+    setNotifications((prev) => [...prev, newNotification]);
 
     if (newNotification.duration && newNotification.duration > 0) {
       setTimeout(() => {
-        removeNotification(id)
-      }, newNotification.duration)
+        removeNotification(id);
+      }, newNotification.duration);
     }
-  }
+  };
 
   const removeNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id))
-  }
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
 
   const showAlert = (message: string, duringRecording: boolean = false) => {
     addNotification({
-      type: duringRecording ? 'alert' : 'info',
-      title: duringRecording ? 'Recording Alert' : 'Info',
+      type: duringRecording ? "alert" : "info",
+      title: duringRecording ? "Recording Alert" : "Info",
       message,
       duration: duringRecording ? 3000 : 5000,
-    })
-  }
+    });
+  };
 
   return (
-    <NotificationContext.Provider value={{ notifications, addNotification, removeNotification, showAlert }}>
+    <NotificationContext.Provider
+      value={{ notifications, addNotification, removeNotification, showAlert }}
+    >
       {children}
-      <NotificationContainer notifications={notifications} onRemove={removeNotification} />
+      <NotificationContainer
+        notifications={notifications}
+        onRemove={removeNotification}
+      />
     </NotificationContext.Provider>
-  )
+  );
 }
 
 function NotificationContainer({
   notifications,
   onRemove,
 }: {
-  notifications: Notification[]
-  onRemove: (id: string) => void
+  notifications: Notification[];
+  onRemove: (id: string) => void;
 }) {
   return (
     <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
       <AnimatePresence>
-        {notifications.map(notification => (
+        {notifications.map((notification) => (
           <NotificationItem
             key={notification.id}
             notification={notification}
@@ -92,15 +117,15 @@ function NotificationContainer({
         ))}
       </AnimatePresence>
     </div>
-  )
+  );
 }
 
 function NotificationItem({
   notification,
   onRemove,
 }: {
-  notification: Notification
-  onRemove: (id: string) => void
+  notification: Notification;
+  onRemove: (id: string) => void;
 }) {
   const icons = {
     success: CheckCircle,
@@ -108,18 +133,18 @@ function NotificationItem({
     info: Info,
     warning: AlertTriangle,
     alert: Bell,
-  }
+  };
 
   const colors = {
-    success: 'bg-green-500/20 border-green-500/30 text-green-300',
-    error: 'bg-red-500/20 border-red-500/30 text-red-300',
-    info: 'bg-blue-500/20 border-blue-500/30 text-blue-300',
-    warning: 'bg-yellow-500/20 border-yellow-500/30 text-yellow-300',
-    alert: 'bg-orange-500/20 border-orange-500/30 text-orange-300',
-  }
+    success: "bg-green-500/20 border-green-500/30 text-green-300",
+    error: "bg-red-500/20 border-red-500/30 text-red-300",
+    info: "bg-blue-500/20 border-blue-500/30 text-blue-300",
+    warning: "bg-yellow-500/20 border-yellow-500/30 text-yellow-300",
+    alert: "bg-orange-500/20 border-orange-500/30 text-orange-300",
+  };
 
-  const Icon = icons[notification.type]
-  const colorClass = colors[notification.type]
+  const Icon = icons[notification.type];
+  const colorClass = colors[notification.type];
 
   return (
     <motion.div
@@ -150,7 +175,7 @@ function NotificationItem({
         </button>
       </div>
     </motion.div>
-  )
+  );
 }
 
 // Real-time alerts during recording
@@ -160,47 +185,59 @@ export function useRecordingAlerts(
   sentimentScore: number,
   engagementScore: number
 ) {
-  const { showAlert } = useNotifications()
-  const lastAlertTime = useRef<{ audio?: number; sentiment?: number; engagement?: number }>({})
+  const { showAlert } = useNotifications();
+  const lastAlertTime = useRef<{
+    audio?: number;
+    sentiment?: number;
+    engagement?: number;
+  }>({});
 
   useEffect(() => {
-    if (!isRecording) return
+    if (!isRecording) return;
 
     const checkInterval = setInterval(() => {
-      const now = Date.now()
-      const ALERT_COOLDOWN = 30000 // 30 segundos entre alertas do mesmo tipo
+      const now = Date.now();
+      const ALERT_COOLDOWN = 30000; // 30 segundos entre alertas do mesmo tipo
 
       // Low audio level alert - threshold muito mais baixo e com cooldown
       // Só alerta se realmente estiver muito baixo (próximo de zero) por tempo prolongado
       // O alerta é apenas informativo e NÃO bloqueia transcrição/análise
       if (audioLevel < 2 && audioLevel > 0) {
-        const lastAudioAlert = lastAlertTime.current.audio || 0
+        const lastAudioAlert = lastAlertTime.current.audio || 0;
         if (now - lastAudioAlert > ALERT_COOLDOWN) {
-          showAlert('Nível de áudio detectado como baixo. Verifique se o microfone está funcionando corretamente. A gravação continua normalmente.', true)
-          lastAlertTime.current.audio = now
+          showAlert(
+            "Nível de áudio detectado como baixo. Verifique se o microfone está funcionando corretamente. A gravação continua normalmente.",
+            true
+          );
+          lastAlertTime.current.audio = now;
         }
       }
 
       // Low sentiment alert
       if (sentimentScore < 0.3 && sentimentScore > 0) {
-        const lastSentimentAlert = lastAlertTime.current.sentiment || 0
+        const lastSentimentAlert = lastAlertTime.current.sentiment || 0;
         if (now - lastSentimentAlert > ALERT_COOLDOWN) {
-          showAlert('Sentimento está baixo. Tente manter um tom mais positivo.', true)
-          lastAlertTime.current.sentiment = now
+          showAlert(
+            "Sentimento está baixo. Tente manter um tom mais positivo.",
+            true
+          );
+          lastAlertTime.current.sentiment = now;
         }
       }
 
       // Low engagement alert
       if (engagementScore < 0.3 && engagementScore > 0) {
-        const lastEngagementAlert = lastAlertTime.current.engagement || 0
+        const lastEngagementAlert = lastAlertTime.current.engagement || 0;
         if (now - lastEngagementAlert > ALERT_COOLDOWN) {
-          showAlert('Engajamento está baixo. Tente fazer mais perguntas ou variar sua voz.', true)
-          lastAlertTime.current.engagement = now
+          showAlert(
+            "Engajamento está baixo. Tente fazer mais perguntas ou variar sua voz.",
+            true
+          );
+          lastAlertTime.current.engagement = now;
         }
       }
-    }, 10000) // Check every 10 seconds
+    }, 10000); // Check every 10 seconds
 
-    return () => clearInterval(checkInterval)
-  }, [isRecording, audioLevel, sentimentScore, engagementScore, showAlert])
+    return () => clearInterval(checkInterval);
+  }, [isRecording, audioLevel, sentimentScore, engagementScore, showAlert]);
 }
-
