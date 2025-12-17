@@ -1,76 +1,92 @@
-import { useEffect } from 'react'
-import { useRealtimeTranscription } from '../hooks/useRealtimeTranscription'
-import { Mic, MicOff } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { useEffect } from "react";
+import { useRealtimeTranscription } from "../hooks/useRealtimeTranscription";
+import { Mic, MicOff } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface RealtimeTranscriptionProps {
-  isRecording: boolean
-  onTranscriptionChange?: (text: string) => void
-  language?: string
+  isRecording: boolean;
+  onTranscriptionChange?: (text: string) => void;
+  language?: string;
 }
 
 export default function RealtimeTranscription({
   isRecording,
   onTranscriptionChange,
-  language = 'pt-BR',
+  language = "pt-BR",
 }: RealtimeTranscriptionProps) {
-  const { text, interimText, isListening, error, start, stop } = useRealtimeTranscription(language)
+  const { text, interimText, isListening, error, start, stop } =
+    useRealtimeTranscription(language);
 
   // Sync with recording state
   useEffect(() => {
     if (isRecording) {
       // Try to start immediately and retry if needed
-      console.log('Recording started, attempting to start transcription...')
+      console.log("Recording started, attempting to start transcription...");
       const timeout = setTimeout(() => {
         if (!isListening) {
-          console.log('Starting transcription (delayed start)')
-          start()
+          console.log("Starting transcription (delayed start)");
+          start();
         }
-      }, 500) // Increased delay to ensure microphone is ready
-      
+      }, 500); // Increased delay to ensure microphone is ready
+
       // Also try immediately
       if (!isListening) {
-        console.log('Starting transcription (immediate start)')
-        start()
+        console.log("Starting transcription (immediate start)");
+        start();
       }
-      
-      return () => clearTimeout(timeout)
+
+      return () => clearTimeout(timeout);
     } else if (!isRecording && isListening) {
-      console.log('Recording stopped, stopping transcription')
-      stop()
+      console.log("Recording stopped, stopping transcription");
+      stop();
     }
-  }, [isRecording, isListening, start, stop])
+  }, [isRecording, isListening, start, stop]);
 
   // Notify parent of transcription changes
   useEffect(() => {
     if (onTranscriptionChange) {
-      const fullText = (text || '') + (interimText || '')
-      onTranscriptionChange(fullText.trim())
+      const fullText = (text || "") + (interimText || "");
+      onTranscriptionChange(fullText.trim());
     }
-  }, [text, interimText, onTranscriptionChange])
+  }, [text, interimText, onTranscriptionChange]);
 
   // Highlight keywords in real-time
   const highlightKeywords = (text: string) => {
-    const keywords = ['preço', 'orçamento', 'desconto', 'prazo', 'garantia', 'produto', 'serviço']
-    let highlighted = text
-    keywords.forEach(keyword => {
-      const regex = new RegExp(`\\b${keyword}\\b`, 'gi')
-      highlighted = highlighted.replace(regex, `<mark class="bg-yellow-300 text-yellow-900 px-1 rounded">${keyword}</mark>`)
-    })
-    return highlighted
-  }
+    const keywords = [
+      "preço",
+      "orçamento",
+      "desconto",
+      "prazo",
+      "garantia",
+      "produto",
+      "serviço",
+    ];
+    let highlighted = text;
+    keywords.forEach((keyword) => {
+      const regex = new RegExp(`\\b${keyword}\\b`, "gi");
+      highlighted = highlighted.replace(
+        regex,
+        `<mark class="bg-yellow-300 text-yellow-900 px-1 rounded">${keyword}</mark>`
+      );
+    });
+    return highlighted;
+  };
 
   if (error) {
     return (
       <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
-        <p className="text-red-300 text-sm font-bold">⚠️ Erro na Transcrição em Tempo Real</p>
+        <p className="text-red-300 text-sm font-bold">
+          ⚠️ Erro na Transcrição em Tempo Real
+        </p>
         <p className="text-red-200 text-sm mt-2">{error}</p>
         <p className="text-gray-400 text-xs mt-3">
-          <strong>Nota:</strong> A transcrição em tempo real requer um navegador compatível (Chrome, Edge). 
-          Mesmo sem transcrição em tempo real, o áudio será transcrito e analisado completamente após salvar a gravação.
+          <strong>Nota:</strong> A transcrição em tempo real requer um navegador
+          compatível (Chrome, Edge). Mesmo sem transcrição em tempo real, o
+          áudio será transcrito e analisado completamente após salvar a
+          gravação.
         </p>
       </div>
-    )
+    );
   }
 
   return (
@@ -95,7 +111,7 @@ export default function RealtimeTranscription({
           </span>
         )}
       </div>
-      
+
       <div className="max-h-64 overflow-y-auto bg-black/20 rounded-lg p-4 text-sm">
         {text && (
           <div
@@ -111,19 +127,19 @@ export default function RealtimeTranscription({
             <p>Aguardando fala...</p>
             {!isListening && (
               <p className="text-xs mt-2 text-yellow-400">
-                ⚠️ Transcrição não iniciada. Verifique se o navegador suporta Web Speech API (Chrome/Edge) e se o microfone tem permissão.
+                ⚠️ Transcrição não iniciada. Verifique se o navegador suporta
+                Web Speech API (Chrome/Edge) e se o microfone tem permissão.
               </p>
             )}
           </div>
         )}
       </div>
-      
+
       {text && (
         <div className="mt-4 text-xs text-gray-400">
-          {text.split(' ').length} palavras transcritas
+          {text.split(" ").length} palavras transcritas
         </div>
       )}
     </div>
-  )
+  );
 }
-
