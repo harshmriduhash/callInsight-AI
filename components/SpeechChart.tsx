@@ -1,45 +1,63 @@
-import { useMemo } from 'react'
-import { motion } from 'framer-motion'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { Mic, User } from 'lucide-react'
+import { useMemo } from "react";
+import { motion } from "framer-motion";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
+import { Mic, User } from "lucide-react";
 
 interface SpeechSegment {
-  timestamp: string
-  speaker: 'salesperson' | 'customer'
-  duration: number // seconds
-  wordCount: number
+  timestamp: string;
+  speaker: "salesperson" | "customer";
+  duration: number; // seconds
+  wordCount: number;
 }
 
 interface SpeechChartProps {
-  segments: SpeechSegment[]
+  segments: SpeechSegment[];
   interruptions?: Array<{
-    timestamp: string
-    interrupter: 'salesperson' | 'customer'
-    interrupted: 'salesperson' | 'customer'
-  }>
+    timestamp: string;
+    interrupter: "salesperson" | "customer";
+    interrupted: "salesperson" | "customer";
+  }>;
 }
 
-export default function SpeechChart({ segments, interruptions = [] }: SpeechChartProps) {
+export default function SpeechChart({
+  segments,
+  interruptions = [],
+}: SpeechChartProps) {
   const chartData = useMemo(() => {
     // Group by time intervals (30 seconds)
-    const interval = 30
-    const dataMap: { [key: string]: { salesperson: number; customer: number } } = {}
+    const interval = 30;
+    const dataMap: {
+      [key: string]: { salesperson: number; customer: number };
+    } = {};
 
     segments.forEach((segment) => {
-      const timeInSeconds = parseTimeToSeconds(segment.timestamp)
-      const intervalKey = Math.floor(timeInSeconds / interval) * interval
-      const timeLabel = `${Math.floor(intervalKey / 60)}:${(intervalKey % 60).toString().padStart(2, '0')}`
+      const timeInSeconds = parseTimeToSeconds(segment.timestamp);
+      const intervalKey = Math.floor(timeInSeconds / interval) * interval;
+      const timeLabel = `${Math.floor(intervalKey / 60)}:${(intervalKey % 60)
+        .toString()
+        .padStart(2, "0")}`;
 
       if (!dataMap[timeLabel]) {
-        dataMap[timeLabel] = { salesperson: 0, customer: 0 }
+        dataMap[timeLabel] = { salesperson: 0, customer: 0 };
       }
 
-      if (segment.speaker === 'salesperson') {
-        dataMap[timeLabel].salesperson += segment.duration
+      if (segment.speaker === "salesperson") {
+        dataMap[timeLabel].salesperson += segment.duration;
       } else {
-        dataMap[timeLabel].customer += segment.duration
+        dataMap[timeLabel].customer += segment.duration;
       }
-    })
+    });
 
     return Object.keys(dataMap)
       .sort()
@@ -47,43 +65,64 @@ export default function SpeechChart({ segments, interruptions = [] }: SpeechChar
         time,
         salesperson: dataMap[time].salesperson,
         customer: dataMap[time].customer,
-      }))
-  }, [segments])
+      }));
+  }, [segments]);
 
   const pieData = useMemo(() => {
     const totalSalesperson = segments
-      .filter((s) => s.speaker === 'salesperson')
-      .reduce((sum, s) => sum + s.duration, 0)
+      .filter((s) => s.speaker === "salesperson")
+      .reduce((sum, s) => sum + s.duration, 0);
     const totalCustomer = segments
-      .filter((s) => s.speaker === 'customer')
-      .reduce((sum, s) => sum + s.duration, 0)
+      .filter((s) => s.speaker === "customer")
+      .reduce((sum, s) => sum + s.duration, 0);
 
     return [
-      { name: 'Vendedor', value: totalSalesperson, color: '#3b82f6' },
-      { name: 'Cliente', value: totalCustomer, color: '#10b981' },
-    ]
-  }, [segments])
+      { name: "Vendedor", value: totalSalesperson, color: "#3b82f6" },
+      { name: "Cliente", value: totalCustomer, color: "#10b981" },
+    ];
+  }, [segments]);
 
   const statistics = useMemo(() => {
-    const salespersonSegments = segments.filter((s) => s.speaker === 'salesperson')
-    const customerSegments = segments.filter((s) => s.speaker === 'customer')
+    const salespersonSegments = segments.filter(
+      (s) => s.speaker === "salesperson"
+    );
+    const customerSegments = segments.filter((s) => s.speaker === "customer");
 
-    const salespersonTotalTime = salespersonSegments.reduce((sum, s) => sum + s.duration, 0)
-    const customerTotalTime = customerSegments.reduce((sum, s) => sum + s.duration, 0)
-    const totalTime = salespersonTotalTime + customerTotalTime
+    const salespersonTotalTime = salespersonSegments.reduce(
+      (sum, s) => sum + s.duration,
+      0
+    );
+    const customerTotalTime = customerSegments.reduce(
+      (sum, s) => sum + s.duration,
+      0
+    );
+    const totalTime = salespersonTotalTime + customerTotalTime;
 
-    const salespersonWords = salespersonSegments.reduce((sum, s) => sum + s.wordCount, 0)
-    const customerWords = customerSegments.reduce((sum, s) => sum + s.wordCount, 0)
+    const salespersonWords = salespersonSegments.reduce(
+      (sum, s) => sum + s.wordCount,
+      0
+    );
+    const customerWords = customerSegments.reduce(
+      (sum, s) => sum + s.wordCount,
+      0
+    );
 
-    const salespersonInterruptions = interruptions.filter((i) => i.interrupter === 'salesperson').length
-    const customerInterruptions = interruptions.filter((i) => i.interrupter === 'customer').length
+    const salespersonInterruptions = interruptions.filter(
+      (i) => i.interrupter === "salesperson"
+    ).length;
+    const customerInterruptions = interruptions.filter(
+      (i) => i.interrupter === "customer"
+    ).length;
 
     return {
       salesperson: {
         totalTime: salespersonTotalTime,
         percentage: (salespersonTotalTime / totalTime) * 100,
         words: salespersonWords,
-        wordsPerMinute: salespersonTotalTime > 0 ? (salespersonWords / salespersonTotalTime) * 60 : 0,
+        wordsPerMinute:
+          salespersonTotalTime > 0
+            ? (salespersonWords / salespersonTotalTime) * 60
+            : 0,
         interruptions: salespersonInterruptions,
         segments: salespersonSegments.length,
       },
@@ -91,19 +130,20 @@ export default function SpeechChart({ segments, interruptions = [] }: SpeechChar
         totalTime: customerTotalTime,
         percentage: (customerTotalTime / totalTime) * 100,
         words: customerWords,
-        wordsPerMinute: customerTotalTime > 0 ? (customerWords / customerTotalTime) * 60 : 0,
+        wordsPerMinute:
+          customerTotalTime > 0 ? (customerWords / customerTotalTime) * 60 : 0,
         interruptions: customerInterruptions,
         segments: customerSegments.length,
       },
-    }
-  }, [segments, interruptions])
+    };
+  }, [segments, interruptions]);
 
   function parseTimeToSeconds(time: string): number {
-    const [minutes, seconds] = time.split(':').map(Number)
-    return minutes * 60 + seconds
+    const [minutes, seconds] = time.split(":").map(Number);
+    return minutes * 60 + seconds;
   }
 
-  const COLORS = ['#3b82f6', '#10b981']
+  const COLORS = ["#3b82f6", "#10b981"];
 
   return (
     <div className="glass rounded-xl p-6">
@@ -122,19 +162,30 @@ export default function SpeechChart({ segments, interruptions = [] }: SpeechChar
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-400">Tempo Total:</span>
-              <span className="font-bold">{Math.floor(statistics.salesperson.totalTime / 60)}:{(statistics.salesperson.totalTime % 60).toString().padStart(2, '0')}</span>
+              <span className="font-bold">
+                {Math.floor(statistics.salesperson.totalTime / 60)}:
+                {(statistics.salesperson.totalTime % 60)
+                  .toString()
+                  .padStart(2, "0")}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Percentual:</span>
-              <span className="font-bold">{statistics.salesperson.percentage.toFixed(1)}%</span>
+              <span className="font-bold">
+                {statistics.salesperson.percentage.toFixed(1)}%
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Palavras/min:</span>
-              <span className="font-bold">{statistics.salesperson.wordsPerMinute.toFixed(0)}</span>
+              <span className="font-bold">
+                {statistics.salesperson.wordsPerMinute.toFixed(0)}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Interrupções:</span>
-              <span className="font-bold">{statistics.salesperson.interruptions}</span>
+              <span className="font-bold">
+                {statistics.salesperson.interruptions}
+              </span>
             </div>
           </div>
         </motion.div>
@@ -150,19 +201,30 @@ export default function SpeechChart({ segments, interruptions = [] }: SpeechChar
           <div className="space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-400">Tempo Total:</span>
-              <span className="font-bold">{Math.floor(statistics.customer.totalTime / 60)}:{(statistics.customer.totalTime % 60).toString().padStart(2, '0')}</span>
+              <span className="font-bold">
+                {Math.floor(statistics.customer.totalTime / 60)}:
+                {(statistics.customer.totalTime % 60)
+                  .toString()
+                  .padStart(2, "0")}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Percentual:</span>
-              <span className="font-bold">{statistics.customer.percentage.toFixed(1)}%</span>
+              <span className="font-bold">
+                {statistics.customer.percentage.toFixed(1)}%
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Palavras/min:</span>
-              <span className="font-bold">{statistics.customer.wordsPerMinute.toFixed(0)}</span>
+              <span className="font-bold">
+                {statistics.customer.wordsPerMinute.toFixed(0)}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-400">Interrupções:</span>
-              <span className="font-bold">{statistics.customer.interruptions}</span>
+              <span className="font-bold">
+                {statistics.customer.interruptions}
+              </span>
             </div>
           </div>
         </motion.div>
@@ -171,22 +233,38 @@ export default function SpeechChart({ segments, interruptions = [] }: SpeechChar
       {/* Bar Chart */}
       {chartData.length > 0 && (
         <div className="mb-6">
-          <h4 className="text-sm font-bold mb-2">Distribuição de Fala ao Longo do Tempo</h4>
+          <h4 className="text-sm font-bold mb-2">
+            Distribuição de Fala ao Longo do Tempo
+          </h4>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-              <XAxis dataKey="time" stroke="#999" tick={{ fill: '#999', fontSize: 12 }} />
-              <YAxis stroke="#999" tick={{ fill: '#999', fontSize: 12 }} />
+              <XAxis
+                dataKey="time"
+                stroke="#999"
+                tick={{ fill: "#999", fontSize: 12 }}
+              />
+              <YAxis stroke="#999" tick={{ fill: "#999", fontSize: 12 }} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#1f2937',
-                  border: 'none',
-                  borderRadius: '8px',
+                  backgroundColor: "#1f2937",
+                  border: "none",
+                  borderRadius: "8px",
                 }}
-                itemStyle={{ color: '#fff' }}
+                itemStyle={{ color: "#fff" }}
               />
-              <Bar dataKey="salesperson" stackId="a" fill="#3b82f6" name="Vendedor" />
-              <Bar dataKey="customer" stackId="a" fill="#10b981" name="Cliente" />
+              <Bar
+                dataKey="salesperson"
+                stackId="a"
+                fill="#3b82f6"
+                name="Vendedor"
+              />
+              <Bar
+                dataKey="customer"
+                stackId="a"
+                fill="#10b981"
+                name="Cliente"
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -202,7 +280,9 @@ export default function SpeechChart({ segments, interruptions = [] }: SpeechChar
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+              label={({ name, percent }) =>
+                `${name}: ${(percent * 100).toFixed(1)}%`
+              }
               outerRadius={80}
               fill="#8884d8"
               dataKey="value"
@@ -213,15 +293,14 @@ export default function SpeechChart({ segments, interruptions = [] }: SpeechChar
             </Pie>
             <Tooltip
               contentStyle={{
-                backgroundColor: '#1f2937',
-                border: 'none',
-                borderRadius: '8px',
+                backgroundColor: "#1f2937",
+                border: "none",
+                borderRadius: "8px",
               }}
             />
           </PieChart>
         </ResponsiveContainer>
       </div>
     </div>
-  )
+  );
 }
-
