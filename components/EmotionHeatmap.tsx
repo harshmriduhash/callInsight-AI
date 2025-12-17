@@ -1,17 +1,17 @@
-import { useMemo } from 'react'
-import { motion } from 'framer-motion'
+import { useMemo } from "react";
+import { motion } from "framer-motion";
 
 interface EmotionData {
-  time: string
-  salespersonEmotion: string
-  customerEmotion: string
-  intensity?: number
+  time: string;
+  salespersonEmotion: string;
+  customerEmotion: string;
+  intensity?: number;
 }
 
 interface EmotionHeatmapProps {
-  emotionTimeline: EmotionData[]
-  duration: number // seconds
-  cellSize?: number // pixels
+  emotionTimeline: EmotionData[];
+  duration: number; // seconds
+  cellSize?: number; // pixels
 }
 
 export default function EmotionHeatmap({
@@ -21,61 +21,68 @@ export default function EmotionHeatmap({
 }: EmotionHeatmapProps) {
   const heatmapData = useMemo(() => {
     // Group emotions by time intervals (30 seconds each)
-    const interval = 30 // seconds
-    const intervals = Math.ceil(duration / interval)
+    const interval = 30; // seconds
+    const intervals = Math.ceil(duration / interval);
     const data: Array<{
-      time: string
-      salespersonEmotion: string
-      customerEmotion: string
-      intensity: number
-      count: number
-    }> = []
+      time: string;
+      salespersonEmotion: string;
+      customerEmotion: string;
+      intensity: number;
+      count: number;
+    }> = [];
 
     for (let i = 0; i < intervals; i++) {
-      const startTime = i * interval
-      const endTime = Math.min((i + 1) * interval, duration)
-      const timeLabel = `${Math.floor(startTime / 60)}:${(startTime % 60).toString().padStart(2, '0')}`
+      const startTime = i * interval;
+      const endTime = Math.min((i + 1) * interval, duration);
+      const timeLabel = `${Math.floor(startTime / 60)}:${(startTime % 60)
+        .toString()
+        .padStart(2, "0")}`;
 
       const emotionsInInterval = emotionTimeline.filter((item) => {
-        const timeInSeconds = parseTimeToSeconds(item.time)
-        return timeInSeconds >= startTime && timeInSeconds < endTime
-      })
+        const timeInSeconds = parseTimeToSeconds(item.time);
+        return timeInSeconds >= startTime && timeInSeconds < endTime;
+      });
 
       if (emotionsInInterval.length > 0) {
         const avgSalespersonEmotion = getEmotionValue(
           emotionsInInterval[emotionsInInterval.length - 1].salespersonEmotion
-        )
+        );
         const avgCustomerEmotion = getEmotionValue(
           emotionsInInterval[emotionsInInterval.length - 1].customerEmotion
-        )
+        );
         const avgIntensity =
-          emotionsInInterval.reduce((sum, item) => sum + (item.intensity || 0.5), 0) /
-          emotionsInInterval.length
+          emotionsInInterval.reduce(
+            (sum, item) => sum + (item.intensity || 0.5),
+            0
+          ) / emotionsInInterval.length;
 
         data.push({
           time: timeLabel,
-          salespersonEmotion: emotionsInInterval[emotionsInInterval.length - 1].salespersonEmotion,
-          customerEmotion: emotionsInInterval[emotionsInInterval.length - 1].customerEmotion,
+          salespersonEmotion:
+            emotionsInInterval[emotionsInInterval.length - 1]
+              .salespersonEmotion,
+          customerEmotion:
+            emotionsInInterval[emotionsInInterval.length - 1].customerEmotion,
           intensity: avgIntensity,
           count: emotionsInInterval.length,
-        })
+        });
       } else {
         data.push({
           time: timeLabel,
-          salespersonEmotion: 'neutral',
-          customerEmotion: 'neutral',
+          salespersonEmotion: "neutral",
+          customerEmotion: "neutral",
           intensity: 0.5,
           count: 0,
-        })
+        });
       }
     }
 
-    return data
-  }, [emotionTimeline, duration])
+    return data;
+  }, [emotionTimeline, duration]);
 
   function parseTimeToSeconds(time: string): number {
-    const [minutes, seconds] = time.split(':').map(Number)
-    return minutes * 60 + seconds
+    const [minutes, seconds] = time.split(":").map(Number);
+    return minutes * 60 + seconds;
   }
 
   function getEmotionValue(emotion: string): number {
@@ -88,26 +95,27 @@ export default function EmotionHeatmap({
       anxiety: 0.3,
       frustration: 0.2,
       anger: 0.1,
-    }
-    return emotionMap[emotion.toLowerCase()] || 0.5
+    };
+    return emotionMap[emotion.toLowerCase()] || 0.5;
   }
 
   function getEmotionColor(emotion: string, intensity: number): string {
     const baseColors: { [key: string]: string } = {
-      joy: 'from-yellow-400 to-green-500',
-      confidence: 'from-blue-400 to-blue-600',
-      excitement: 'from-pink-400 to-red-500',
-      calm: 'from-green-400 to-teal-500',
-      neutral: 'from-gray-400 to-gray-600',
-      anxiety: 'from-orange-400 to-red-500',
-      frustration: 'from-red-400 to-red-600',
-      anger: 'from-red-600 to-red-800',
-    }
+      joy: "from-yellow-400 to-green-500",
+      confidence: "from-blue-400 to-blue-600",
+      excitement: "from-pink-400 to-red-500",
+      calm: "from-green-400 to-teal-500",
+      neutral: "from-gray-400 to-gray-600",
+      anxiety: "from-orange-400 to-red-500",
+      frustration: "from-red-400 to-red-600",
+      anger: "from-red-600 to-red-800",
+    };
 
-    const colorClass = baseColors[emotion.toLowerCase()] || 'from-gray-400 to-gray-600'
-    const opacity = Math.max(0.3, Math.min(1, intensity))
+    const colorClass =
+      baseColors[emotion.toLowerCase()] || "from-gray-400 to-gray-600";
+    const opacity = Math.max(0.3, Math.min(1, intensity));
 
-    return `bg-gradient-to-r ${colorClass} opacity-${Math.round(opacity * 10)}`
+    return `bg-gradient-to-r ${colorClass} opacity-${Math.round(opacity * 10)}`;
   }
 
   return (
@@ -150,10 +158,14 @@ export default function EmotionHeatmap({
                       item.intensity
                     )} flex items-center justify-between px-2 text-xs`}
                     whileHover={{ scale: 1.05 }}
-                    title={`${item.time}: ${item.salespersonEmotion} (${(item.intensity * 100).toFixed(0)}%)`}
+                    title={`${item.time}: ${item.salespersonEmotion} (${(
+                      item.intensity * 100
+                    ).toFixed(0)}%)`}
                   >
                     <span className="text-white font-medium">{item.time}</span>
-                    <span className="text-white/80 text-xs">{item.salespersonEmotion}</span>
+                    <span className="text-white/80 text-xs">
+                      {item.salespersonEmotion}
+                    </span>
                   </motion.div>
                 ))}
               </div>
@@ -171,10 +183,14 @@ export default function EmotionHeatmap({
                       item.intensity
                     )} flex items-center justify-between px-2 text-xs`}
                     whileHover={{ scale: 1.05 }}
-                    title={`${item.time}: ${item.customerEmotion} (${(item.intensity * 100).toFixed(0)}%)`}
+                    title={`${item.time}: ${item.customerEmotion} (${(
+                      item.intensity * 100
+                    ).toFixed(0)}%)`}
                   >
                     <span className="text-white font-medium">{item.time}</span>
-                    <span className="text-white/80 text-xs">{item.customerEmotion}</span>
+                    <span className="text-white/80 text-xs">
+                      {item.customerEmotion}
+                    </span>
                   </motion.div>
                 ))}
               </div>
@@ -189,26 +205,32 @@ export default function EmotionHeatmap({
           <div>
             <span className="text-gray-400">Emoção Dominante (Vendedor):</span>
             <span className="ml-2 font-bold">
-              {getMostFrequentEmotion(heatmapData.map((d) => d.salespersonEmotion))}
+              {getMostFrequentEmotion(
+                heatmapData.map((d) => d.salespersonEmotion)
+              )}
             </span>
           </div>
           <div>
             <span className="text-gray-400">Emoção Dominante (Cliente):</span>
             <span className="ml-2 font-bold">
-              {getMostFrequentEmotion(heatmapData.map((d) => d.customerEmotion))}
+              {getMostFrequentEmotion(
+                heatmapData.map((d) => d.customerEmotion)
+              )}
             </span>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function getMostFrequentEmotion(emotions: string[]): string {
-  const counts: { [key: string]: number } = {}
+  const counts: { [key: string]: number } = {};
   emotions.forEach((emotion) => {
-    counts[emotion] = (counts[emotion] || 0) + 1
-  })
-  return Object.keys(counts).reduce((a, b) => (counts[a] > counts[b] ? a : b), 'neutral')
+    counts[emotion] = (counts[emotion] || 0) + 1;
+  });
+  return Object.keys(counts).reduce(
+    (a, b) => (counts[a] > counts[b] ? a : b),
+    "neutral"
+  );
 }
-
