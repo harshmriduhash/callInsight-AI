@@ -1,45 +1,45 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Brain, Mail, Lock, Eye, EyeOff } from 'lucide-react'
-import { useRouter } from 'next/router'
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Brain, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/router";
 
 export default function Login() {
-  const router = useRouter()
-  const [isLogin, setIsLogin] = useState(true)
-  const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const router = useRouter();
+  const [isLogin, setIsLogin] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    name: ''
-  })
+    email: "",
+    password: "",
+    name: "",
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
+    e.preventDefault();
+    setLoading(true);
 
     // Simular autenticação
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
     // Dados simulados do usuário
     const userData = {
-      id: '1',
-      name: isLogin ? formData.email.split('@')[0] : formData.name,
+      id: "1",
+      name: isLogin ? formData.email.split("@")[0] : formData.name,
       email: formData.email,
-      plan: 'free', // free, pro, enterprise
+      plan: "free", // free, pro, enterprise
       subscription: {
         active: false,
-        plan: 'free',
-        expiresAt: null
-      }
-    }
+        plan: "free",
+        expiresAt: null,
+      },
+    };
 
     // Salvar no localStorage
-    localStorage.setItem('user', JSON.stringify(userData))
-    
-    setLoading(false)
-    router.push('/')
-  }
+    localStorage.setItem("user", JSON.stringify(userData));
+
+    setLoading(false);
+    router.push("/");
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900 to-teal-900 text-white flex items-center justify-center p-4">
@@ -56,8 +56,12 @@ export default function Login() {
           >
             <Brain className="w-10 h-10" />
           </motion.div>
-          <h1 className="text-2xl font-bold gradient-text mb-2">SalesVoice AI</h1>
-          <p className="text-gray-300">{isLogin ? 'Bem-vindo de volta!' : 'Crie sua conta'}</p>
+          <h1 className="text-2xl font-bold gradient-text mb-2">
+            SalesVoice AI
+          </h1>
+          <p className="text-gray-300">
+            {isLogin ? "Bem-vindo de volta!" : "Crie sua conta"}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -68,7 +72,9 @@ export default function Login() {
                 type="text"
                 required={!isLogin}
                 value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 className="w-full p-3 bg-black/30 border border-gray-600 rounded-lg focus:border-emerald-500 focus:outline-none"
                 placeholder="Your full name"
               />
@@ -82,7 +88,9 @@ export default function Login() {
                 type="email"
                 required
                 value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
                 className="w-full p-3 bg-black/30 border border-gray-600 rounded-lg focus:border-emerald-500 focus:outline-none pl-10"
                 placeholder="your@email.com"
               />
@@ -94,10 +102,12 @@ export default function Login() {
             <label className="block text-sm font-medium mb-2">Password</label>
             <div className="relative">
               <input
-                type={showPassword ? 'text' : 'password'}
+                type={showPassword ? "text" : "password"}
                 required
                 value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, password: e.target.value })
+                }
                 className="w-full p-3 bg-black/30 border border-gray-600 rounded-lg focus:border-emerald-500 focus:outline-none pl-10 pr-10"
                 placeholder="Your password"
               />
@@ -107,7 +117,11 @@ export default function Login() {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-3 text-gray-400 hover:text-white"
               >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                {showPassword ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
               </button>
             </div>
           </div>
@@ -119,17 +133,19 @@ export default function Login() {
             whileTap={{ scale: loading ? 1 : 0.98 }}
             className={`w-full py-3 rounded-lg font-medium ${
               loading
-                ? 'bg-gray-600 cursor-not-allowed'
-                : 'bg-gradient-to-r from-emerald-600 to-teal-600'
+                ? "bg-gray-600 cursor-not-allowed"
+                : "bg-gradient-to-r from-emerald-600 to-teal-600"
             }`}
           >
             {loading ? (
               <div className="flex items-center justify-center space-x-2">
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>{isLogin ? 'Entrando...' : 'Criando conta...'}</span>
+                <span>{isLogin ? "Entrando..." : "Criando conta..."}</span>
               </div>
+            ) : isLogin ? (
+              "Entrar"
             ) : (
-              isLogin ? 'Entrar' : 'Criar Conta'
+              "Criar Conta"
             )}
           </motion.button>
         </form>
@@ -139,7 +155,9 @@ export default function Login() {
             onClick={() => setIsLogin(!isLogin)}
             className="text-emerald-400 hover:text-emerald-300 text-sm"
           >
-            {isLogin ? "Não tem uma conta? Cadastre-se" : "Já tem uma conta? Entrar"}
+            {isLogin
+              ? "Não tem uma conta? Cadastre-se"
+              : "Já tem uma conta? Entrar"}
           </button>
         </div>
 
@@ -152,5 +170,5 @@ export default function Login() {
         )}
       </motion.div>
     </div>
-  )
+  );
 }
