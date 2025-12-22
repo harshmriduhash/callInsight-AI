@@ -1,40 +1,40 @@
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { ArrowLeft, CreditCard, Shield, Check } from 'lucide-react'
-import { useRouter } from 'next/router'
-import { useAuth } from '../hooks/useAuth'
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { ArrowLeft, CreditCard, Shield, Check } from "lucide-react";
+import { useRouter } from "next/router";
+import { useAuth } from "../hooks/useAuth";
 
 export default function Checkout() {
-  const router = useRouter()
-  const { plan = 'pro', userId } = router.query
-  const { user, updateSubscription } = useAuth()
-  const [processing, setProcessing] = useState(false)
-  const [success, setSuccess] = useState(false)
+  const router = useRouter();
+  const { plan = "pro", userId } = router.query;
+  const { user, updateSubscription } = useAuth();
+  const [processing, setProcessing] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const plans = {
-    pro: { name: 'Pro Plan', price: 79 },
-    enterprise: { name: 'Enterprise', price: 199 }
-  }
+    pro: { name: "Pro Plan", price: 79 },
+    enterprise: { name: "Enterprise", price: 199 },
+  };
 
-  const currentPlan = plans[plan as keyof typeof plans] || plans.pro
+  const currentPlan = plans[plan as keyof typeof plans] || plans.pro;
 
   const handlePayment = async () => {
-    setProcessing(true)
-    
+    setProcessing(true);
+
     // Simular processamento de pagamento
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
     // Atualizar assinatura do usuário
-    updateSubscription(plan as 'pro' | 'enterprise')
-    
-    setProcessing(false)
-    setSuccess(true)
-    
+    updateSubscription(plan as "pro" | "enterprise");
+
+    setProcessing(false);
+    setSuccess(true);
+
     // Redirecionar após sucesso
     setTimeout(() => {
-      router.push('/')
-    }, 2000)
-  }
+      router.push("/");
+    }, 2000);
+  };
 
   if (success) {
     return (
@@ -53,10 +53,12 @@ export default function Checkout() {
           </motion.div>
           <h1 className="text-3xl font-bold mb-4">Pagamento Realizado!</h1>
           <p className="text-gray-300 mb-4">Bem-vindo ao {currentPlan.name}</p>
-          <p className="text-sm text-gray-400">Redirecionando para o painel...</p>
+          <p className="text-sm text-gray-400">
+            Redirecionando para o painel...
+          </p>
         </motion.div>
       </div>
-    )
+    );
   }
 
   return (
@@ -81,11 +83,18 @@ export default function Checkout() {
             className="glass rounded-xl p-8"
           >
             <h2 className="text-2xl font-bold mb-6">Detalhes do Pagamento</h2>
-            
-            <form onSubmit={(e) => { e.preventDefault(); handlePayment(); }}>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handlePayment();
+              }}
+            >
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Card Number</label>
+                  <label className="block text-sm font-medium mb-2">
+                    Card Number
+                  </label>
                   <div className="relative">
                     <input
                       type="text"
@@ -99,7 +108,9 @@ export default function Checkout() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Expiry</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Expiry
+                    </label>
                     <input
                       type="text"
                       placeholder="MM/YY"
@@ -108,7 +119,9 @@ export default function Checkout() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">CVC</label>
+                    <label className="block text-sm font-medium mb-2">
+                      CVC
+                    </label>
                     <input
                       type="text"
                       placeholder="123"
@@ -119,7 +132,9 @@ export default function Checkout() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">Cardholder Name</label>
+                  <label className="block text-sm font-medium mb-2">
+                    Cardholder Name
+                  </label>
                   <input
                     type="text"
                     placeholder="John Doe"
@@ -136,8 +151,8 @@ export default function Checkout() {
                 whileTap={{ scale: processing ? 1 : 0.98 }}
                 className={`w-full mt-6 py-4 rounded-lg font-medium text-lg ${
                   processing
-                    ? 'bg-gray-600 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-emerald-600 to-teal-600'
+                    ? "bg-gray-600 cursor-not-allowed"
+                    : "bg-gradient-to-r from-emerald-600 to-teal-600"
                 }`}
               >
                 {processing ? (
@@ -164,17 +179,19 @@ export default function Checkout() {
             className="glass rounded-xl p-8"
           >
             <h3 className="text-xl font-bold mb-6">Resumo do Pedido</h3>
-            
+
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span>{currentPlan.name}</span>
                 <span>${currentPlan.price}/month</span>
               </div>
-              
+
               <div className="border-t border-gray-600 pt-4">
                 <div className="flex justify-between items-center font-bold text-lg">
                   <span>Total</span>
-                  <span className="gradient-text">${currentPlan.price}/month</span>
+                  <span className="gradient-text">
+                    ${currentPlan.price}/month
+                  </span>
                 </div>
               </div>
             </div>
@@ -182,7 +199,7 @@ export default function Checkout() {
             <div className="mt-8 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
               <h4 className="font-medium mb-2">O que está incluído:</h4>
               <ul className="space-y-1 text-sm">
-                {plan === 'enterprise' ? (
+                {plan === "enterprise" ? (
                   <>
                     <li>✓ Tudo do Plano Pro</li>
                     <li>✓ Integração com CRM</li>
@@ -205,5 +222,5 @@ export default function Checkout() {
         </div>
       </div>
     </div>
-  )
+  );
 }
